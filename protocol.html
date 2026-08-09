@@ -52,6 +52,11 @@
     border-right:2px solid var(--ok);background:rgba(62,201,138,.14)}
   .meter .lbl{position:absolute;right:8px;top:6px;font-size:14px;
     font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .mcap{display:flex;justify-content:space-between;font-size:11.5px;color:var(--dim);
+    text-transform:uppercase;letter-spacing:0.07em;margin:12px 0 0}
+  .mcap b{font-weight:600;color:var(--dim)}
+  .mcap span{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    text-transform:none;letter-spacing:0}
   .bar{height:8px;background:#0e1319;border-radius:99px;overflow:hidden;margin:12px 0}
   .bar i{display:block;height:100%;background:var(--signal);width:0%}
   .count{font-size:76px;text-align:center;font-weight:700;line-height:1.1;
@@ -93,12 +98,23 @@
   <!-- LEVEL -->
   <div class="card hidden" id="cardLevel">
     <h2>Input level</h2>
+
+    <div class="mcap" style="margin-top:0"><b>Peak</b><span>hold 1.2 s, decay 24 dB/s &middot; guide &minus;24 to &minus;8</span></div>
     <div class="meter">
-      <div class="fill" id="meterFill"></div>
-      <div class="zone" id="meterZone"></div>
-      <div class="lbl" id="meterLbl">—</div>
+      <div class="fill" id="pkFill"></div>
+      <div class="zone" id="pkZone"></div>
+      <div class="lbl" id="pkLbl">&mdash;</div>
     </div>
-    <div class="note">Green zone is &minus;18 to &minus;6 dBFS. Aim for peaks around &minus;12. If you sit below the zone, move closer or speak up.</div>
+
+    <div class="mcap"><b>RMS</b><span>300 ms window &middot; guide &minus;34 to &minus;20</span></div>
+    <div class="meter">
+      <div class="fill" id="rmFill"></div>
+      <div class="zone" id="rmZone"></div>
+      <div class="lbl" id="rmLbl">&mdash;</div>
+    </div>
+
+    <div class="note">Both scales run &minus;60 to 0 dBFS. Peak shows headroom; RMS shows steady signal strength and is the easier one to read.<br><br>
+    <b>Speak normally at the prescribed distance.</b> These bands are provisional guidance, not targets to hit. Do not raise your voice or lean in to reach the top of a band &mdash; louder phonation shifts pitch and voice quality, and that would contaminate the evaluation set. Sitting a little below a band is fine. The A1 takes will tell us where your natural level actually falls, and the bands will be set from that.</div>
   </div>
 
   <!-- EXERCISE -->
@@ -169,6 +185,7 @@ class Capture extends AudioWorkletProcessor {
     this.buf=new Float32Array(this.CH);
     this.pos=0;
     this.peakWin=0;
+    this.msAcc=0;
     this.sincePeak=0;
     this.port.onmessage=(e)=>{
       const m=e.data;
@@ -194,6 +211,7 @@ class Capture extends AudioWorkletProcessor {
     for(let i=0;i<N;i++){
       const s=ch[i], a=s<0?-s:s;
       if(a>this.peakWin) this.peakWin=a;
+      this.msAcc+=s*s;
       if(this.rec){
         this.buf[this.pos++]=s;
         if(this.pos===this.CH){
@@ -205,9 +223,10 @@ class Capture extends AudioWorkletProcessor {
     }
     this.sincePeak+=N;
     if(this.sincePeak>=2048){
-      this.sincePeak=0;
-      this.port.postMessage({type:'level',peak:this.peakWin});
-      this.peakWin=0;
+      // Display-only measurement. Never touches the captured samples.
+      this.port.postMessage({type:'level',peak:this.peakWin,
+                             ms:this.msAcc/this.sincePeak});
+      this.sincePeak=0; this.peakWin=0; this.msAcc=0;
     }
     return true;
   }
@@ -348,7 +367,12 @@ let idx=0, chunks=[], recActive=false, suspendedDuringTake=false;
 let takeCounter={};          // exercise id -> highest take number used
 let records=[];              // all completed takes
 let pendingRec=null;
-let meterHold=0, meterTimer=null;
+/* --- Live meter state. Display only; never written to any file. ---
+   Peak : 1.2 s hold, then 24 dB/s decay.   RMS : 300 ms sliding window. */
+const HOLD_MS=1200, DECAY_DB_PER_S=24, RMS_TAU_S=0.30;
+const PK_LO=-24, PK_HI=-8, RM_LO=-34, RM_HI=-20, PK_WARN=-3;
+let pkHoldDb=-99, pkHoldAt=0, msState=0, msInit=false, lastLevelAt=0;
+function resetMeters(){ pkHoldDb=-99; pkHoldAt=0; msState=0; msInit=false; lastLevelAt=0; }
 
 $('inSession').value = new Date().toISOString().replace(/[-:T]/g,'').slice(0,12);
 
@@ -390,9 +414,10 @@ $('btnStart').onclick=async()=>{
       $('setupNote').innerHTML='<span class="warn">Sample rate is '+ctx.sampleRate+
         ' Hz, not 48000. Note this in the session.</span>';
 
-    // meter green zone: -18..-6 dBFS on a -60..0 scale
-    $('meterZone').style.left=((-18+60)/60*100)+'%';
-    $('meterZone').style.width=((12)/60*100)+'%';
+    // provisional guidance zones on a -60..0 dBFS scale
+    const zone=(el,lo,hi)=>{ $(el).style.left=((lo+60)/60*100)+'%';
+                             $(el).style.width=((hi-lo)/60*100)+'%'; };
+    zone('pkZone',PK_LO,PK_HI); zone('rmZone',RM_LO,RM_HI);
 
     $('cardSetup').classList.add('hidden');
     $('cardLevel').classList.remove('hidden');
@@ -415,17 +440,39 @@ const session=()=>('s'+($('inSession').value||'0').replace(/[^A-Za-z0-9_-]/g,'')
 function onMsg(e){
   const m=e.data;
   if(m.type==='level'){
-    const db=m.peak>0?20*Math.log10(m.peak):-99;
-    if(db>meterHold) meterHold=db;
-    const pc=Math.max(0,Math.min(100,(db+60)/60*100));
-    $('meterFill').style.width=pc+'%';
-    $('meterFill').style.background = db>-3?'var(--bad)':(db>=-18&&db<=-6)?'var(--ok)':
-      db>-6?'var(--warn)':'var(--signal)';
-    $('meterLbl').textContent=db>-99?db.toFixed(0)+' dB':'—';
+    const now=performance.now();
+    const dt=lastLevelAt?Math.min((now-lastLevelAt)/1000,0.25):2048/ctx.sampleRate;
+    lastLevelAt=now;
+
+    // --- peak: 1.2 s hold, then 24 dB/s decay ---
+    const pk=m.peak>0?20*Math.log10(m.peak):-99;
+    if(pk>pkHoldDb){ pkHoldDb=pk; pkHoldAt=now; }
+    else if(now-pkHoldAt>HOLD_MS){ pkHoldDb-=DECAY_DB_PER_S*dt; }
+    if(pkHoldDb<-99) pkHoldDb=-99;
+
+    // --- rms: 300 ms sliding window over mean-square ---
+    const ms=m.ms||0;
+    if(!msInit){ msState=ms; msInit=true; }
+    else { msState+=(1-Math.exp(-dt/RMS_TAU_S))*(ms-msState); }
+    const rm=msState>0?10*Math.log10(msState):-99;
+
+    paint('pkFill','pkLbl',pkHoldDb,PK_LO,PK_HI,PK_WARN);
+    paint('rmFill','rmLbl',rm,RM_LO,RM_HI,null);
     return;
   }
   if(m.type==='audio'){ if(recActive||pendingRec) chunks.push(new Float32Array(m.data)); return; }
   if(m.type==='done'){ finalize(); return; }
+}
+
+function paint(fillId,lblId,db,lo,hi,warnAbove){
+  const pc=Math.max(0,Math.min(100,(db+60)/60*100));
+  const f=$(fillId);
+  f.style.width=pc+'%';
+  f.style.background = (warnAbove!==null&&db>warnAbove) ? 'var(--bad)'
+                     : (db>=lo&&db<=hi)                 ? 'var(--ok)'
+                     : (db>hi)                          ? 'var(--warn)'
+                                                        : 'var(--signal)';
+  $(lblId).textContent = db>-99 ? db.toFixed(1)+' dB' : '—';
 }
 
 /* ---------- render current slot ---------- */
@@ -489,7 +536,7 @@ function startTake(){
 }
 
 function beginCapture(e){
-  chunks=[]; recActive=true; meterHold=-99;
+  chunks=[]; recActive=true; resetMeters();
   node.port.postMessage({cmd:'record',on:true});
   const total=LEAD_IN+e.dur+TAIL;
   const t0=performance.now();
@@ -644,6 +691,19 @@ function manifest(list){
     '#   (A3, F1-F4) the window is headroom and natural duration is expected to vary.\n'+
     '# Each take is padded by lead_in_ms before and tail_ms after the window.\n'+
     '# Rows with spoiled=true or ctx_suspended=true must be excluded from analysis.\n'+
+    '#\n'+
+    '# LEVEL MEASUREMENT BASIS\n'+
+    '# peak_dbfs and rms_dbfs are computed over the ENTIRE raw clip, including the\n'+
+    '#   '+LEAD_IN+' ms pre-roll and '+TAIL+' ms post-roll. rms_dbfs is therefore several dB\n'+
+    '#   below the RMS of the voiced region, because the padding silence is averaged in.\n'+
+    '#   This is intentional: it is a raw, unambiguous, reproducible figure that can be\n'+
+    '#   re-derived exactly from the WAV. Voiced-region RMS is an analysis calculation\n'+
+    '#   belonging to the harness and is deliberately NOT performed here.\n'+
+    '# The live on-screen meters are display only and are never written to any file.\n'+
+    '#   Their semantics: peak = 1.2 s hold then 24 dB/s decay; rms = 300 ms sliding\n'+
+    '#   window. Provisional guidance bands peak -24..-8 dBFS, rms -34..-20 dBFS,\n'+
+    '#   warning above -3 dBFS. Provisional only, NOT acceptance criteria — to be set\n'+
+    '#   empirically from the A1 calibration takes.\n'+
     COLS.join(',')+'\n';
   list.forEach(r=>{
     const e=r.ex;
