@@ -3,18 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Flight Engine — Checkpoint 1</title>
+<title>Flight Engine — Checkpoint 1b</title>
 <style>
   :root{
-    --ink:#12161c;
-    --panel:#1b222c;
-    --line:#2c3644;
-    --paper:#f2f4f7;
-    --dim:#8c99aa;
-    --ok:#3ec98a;
-    --warn:#e8b34a;
-    --bad:#ef6a5e;
-    --signal:#6ba8ff;
+    --ink:#12161c; --panel:#1b222c; --line:#2c3644; --paper:#f2f4f7;
+    --dim:#8c99aa; --ok:#3ec98a; --warn:#e8b34a; --bad:#ef6a5e; --signal:#6ba8ff;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;background:var(--ink);color:var(--paper);
@@ -30,10 +23,14 @@
   button{font:inherit;font-weight:600;border:0;border-radius:10px;
     padding:16px 20px;width:100%;margin-bottom:10px;color:#0d1116;
     background:var(--paper);cursor:pointer}
-  button:last-child{margin-bottom:0}
   button:disabled{opacity:.35}
   button.primary{background:var(--signal);color:#08101d}
   button.rec{background:var(--bad);color:#1b0c0a}
+  button.ghost{background:transparent;color:var(--paper);border:1px solid var(--line)}
+  .seg{display:flex;gap:8px;margin:12px 0 4px}
+  .seg button{margin:0;background:transparent;color:var(--dim);
+    border:1px solid var(--line);padding:13px 0}
+  .seg button.on{background:var(--signal);color:#08101d;border-color:var(--signal)}
   .row{display:flex;justify-content:space-between;gap:12px;
     padding:7px 0;border-bottom:1px solid var(--line);font-size:15px}
   .row:last-child{border-bottom:0}
@@ -42,16 +39,19 @@
     text-align:right;word-break:break-all}
   .ok{color:var(--ok)} .warn{color:var(--warn)} .bad{color:var(--bad)}
   .big{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-    font-size:34px;line-height:1.1;letter-spacing:-0.02em}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-  .metric .lbl{color:var(--dim);font-size:12px;text-transform:uppercase;
-    letter-spacing:0.08em;margin-bottom:4px}
+    font-size:27px;line-height:1.15;letter-spacing:-0.02em}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+  .metric .lbl{color:var(--dim);font-size:11px;text-transform:uppercase;
+    letter-spacing:0.07em;margin-bottom:4px}
+  .metric .sub2{color:var(--dim);font-size:12px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;margin-top:2px}
   label.toggle{display:flex;align-items:center;gap:10px;
-    color:var(--dim);font-size:15px;margin-top:4px}
+    color:var(--dim);font-size:15px;margin:4px 0 0}
   label.toggle input{width:22px;height:22px}
   pre{background:#0e1319;border:1px solid var(--line);border-radius:8px;
     padding:12px;overflow-x:auto;font-size:12.5px;margin:0;
-    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#c6d2e0}
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#c6d2e0;
+    white-space:pre-wrap}
   .note{font-size:13.5px;color:var(--dim);margin-top:10px}
   a.dl{display:block;text-align:center;background:var(--ok);color:#04180f;
     padding:16px;border-radius:10px;text-decoration:none;font-weight:600}
@@ -61,8 +61,8 @@
 <body>
 <div class="wrap">
 
-  <h1>Flight Engine — Checkpoint 1</h1>
-  <p class="sub">Does this iPad grant raw microphone access, and can it run an AudioWorklet reliably?</p>
+  <h1>Flight Engine — Checkpoint 1b</h1>
+  <p class="sub">Real callback timing and a load-headroom test.</p>
 
   <div class="card">
     <h2>Step 1 — Microphone</h2>
@@ -72,30 +72,63 @@
   </div>
 
   <div class="card" id="cardWorklet">
-    <h2>Step 2 — AudioWorklet reliability</h2>
+    <h2>Step 2 — AudioWorklet headroom</h2>
+
     <div class="grid">
       <div class="metric">
-        <div class="lbl">Interval p95</div>
-        <div class="big" id="mJitter">—</div>
+        <div class="lbl">process() p50</div>
+        <div class="big" id="mP50">—</div>
+        <div class="sub2" id="mP50b">of 2667 µs budget</div>
+      </div>
+      <div class="metric">
+        <div class="lbl">process() p95</div>
+        <div class="big" id="mP95">—</div>
+        <div class="sub2" id="mP95b">&nbsp;</div>
+      </div>
+      <div class="metric">
+        <div class="lbl">process() max</div>
+        <div class="big" id="mMax">—</div>
+        <div class="sub2" id="mMaxb">&nbsp;</div>
       </div>
       <div class="metric">
         <div class="lbl">Block gaps</div>
         <div class="big" id="mGaps">—</div>
+        <div class="sub2" id="mGapsb">&nbsp;</div>
+      </div>
+      <div class="metric">
+        <div class="lbl">Elapsed since reset</div>
+        <div class="big" id="mElapsed">—</div>
+        <div class="sub2" id="mCond">&nbsp;</div>
+      </div>
+      <div class="metric">
+        <div class="lbl">Clock drift</div>
+        <div class="big" id="mDrift">—</div>
+        <div class="sub2">ms per minute</div>
       </div>
       <div class="metric">
         <div class="lbl">Live pitch</div>
         <div class="big" id="mPitch">—</div>
+        <div class="sub2">smoke test only</div>
       </div>
       <div class="metric">
         <div class="lbl">Peak level</div>
         <div class="big" id="mPeak">—</div>
+        <div class="sub2">since reset</div>
       </div>
     </div>
+
     <label class="toggle">
       <input type="checkbox" id="chkYin" checked>
-      Run YIN pitch analysis (adds CPU load)
+      Run YIN pitch analysis
     </label>
-    <div class="note">Watch these while speaking normally for ~30 seconds. Toggle YIN off and on to see whether analysis load changes the numbers.</div>
+
+    <div class="seg" id="segLoad">
+      <button data-load="1" class="on">1&times;</button>
+      <button data-load="4">4&times;</button>
+      <button data-load="16">16&times;</button>
+    </div>
+    <div class="note" id="timingNote">Analysis load multiplier. Changing it, or toggling YIN, writes a summary of the condition just finished into the log below and resets the counters.</div>
+    <button class="ghost" id="btnReset" style="margin-top:12px">Reset stats</button>
   </div>
 
   <div class="card">
@@ -103,11 +136,11 @@
     <button id="btnRec" class="rec" disabled>Record</button>
     <div id="recRows"></div>
     <a id="dl" class="dl hidden" download>Save WAV file</a>
-    <div class="note">Say a steady “aaah” for about 3 seconds, then stop. Nothing is filtered, smoothed, or resampled — this is exactly what the microphone delivered.</div>
+    <div class="note">Nothing is filtered, smoothed, or resampled. This is exactly what the microphone delivered.</div>
   </div>
 
   <div class="card">
-    <h2>Diagnostics</h2>
+    <h2>Test log</h2>
     <pre id="log">Not started.</pre>
   </div>
 
@@ -119,12 +152,13 @@ class CaptureProcessor extends AudioWorkletProcessor {
     super();
     this.recording = false;
     this.yinOn = true;
+    this.loadMult = 1;
 
     this.lastFrame = -1;
     this.gapCount = 0;
     this.maxGap = 0;
+    this.blocks = 0;
 
-    // Outbound raw audio buffer (untouched samples, native rate)
     this.CHUNK = 4096;
     this.out = new Float32Array(this.CHUNK);
     this.outPos = 0;
@@ -132,7 +166,15 @@ class CaptureProcessor extends AudioWorkletProcessor {
     this.peak = 0;
     this.clipped = 0;
 
-    // --- Analysis-only path. Never touches saved audio. ---
+    // Timing. May be unavailable inside an AudioWorklet on some browsers.
+    this.hasPerf = (typeof performance !== 'undefined' &&
+                    typeof performance.now === 'function');
+    this.TN = 512;
+    this.times = new Float32Array(this.TN);
+    this.timePos = 0;
+    this.timeFilled = 0;
+
+    // Analysis-only path. Never touches saved audio.
     this.dec = Math.max(1, Math.round(sampleRate / 16000));
     this.decRate = sampleRate / this.dec;
     this.decAcc = 0;
@@ -141,21 +183,28 @@ class CaptureProcessor extends AudioWorkletProcessor {
     this.ring = new Float32Array(this.RING);
     this.ringPos = 0;
     this.sinceYin = 0;
-    this.hopDec = Math.round(this.decRate * 0.01); // ~10 ms
-    this.winDec = 1024;                            // ~64 ms at 16 kHz
+    this.baseHop = Math.round(this.decRate * 0.01); // ~10 ms
+    this.winDec = 1024;                             // ~64 ms at 16 kHz
+    this.win = new Float32Array(this.winDec);
     this.f0 = 0;
-    this.clarity = 0;
 
     this.port.onmessage = (e) => {
       const m = e.data;
-      if (m.cmd === 'record') { this.recording = m.on; this.outPos = 0;
-                                this.peak = 0; this.clipped = 0; }
+      if (m.cmd === 'record') {
+        this.recording = m.on; this.outPos = 0;
+      }
       if (m.cmd === 'yin') this.yinOn = m.on;
-      if (m.cmd === 'resetStats') { this.gapCount = 0; this.maxGap = 0; }
+      if (m.cmd === 'load') this.loadMult = m.value;
+      if (m.cmd === 'reset') {
+        this.gapCount = 0; this.maxGap = 0; this.blocks = 0;
+        this.timePos = 0; this.timeFilled = 0;
+        this.peak = 0; this.clipped = 0;
+      }
     };
 
     this.port.postMessage({ type: 'ready', sampleRate: sampleRate,
-                            decRate: this.decRate });
+                            decRate: this.decRate, hasPerf: this.hasPerf,
+                            blockSize: 128 });
   }
 
   yin(buf, n, sr) {
@@ -168,13 +217,14 @@ class CaptureProcessor extends AudioWorkletProcessor {
       for (let i = 0; i < lim; i++) { const x = buf[i] - buf[i + tau]; sum += x * x; }
       d[tau] = sum;
     }
-    let running = 0, best = -1, bestVal = 1;
     const cm = new Float32Array(tauMax + 1);
+    let running = 0;
     cm[0] = 1;
     for (let tau = 1; tau <= tauMax; tau++) {
       running += d[tau];
       cm[tau] = running > 0 ? d[tau] * tau / running : 1;
     }
+    let best = -1, bestVal = 1;
     for (let tau = tauMin; tau <= tauMax; tau++) {
       if (cm[tau] < 0.15) {
         while (tau + 1 <= tauMax && cm[tau + 1] < cm[tau]) tau++;
@@ -182,17 +232,19 @@ class CaptureProcessor extends AudioWorkletProcessor {
       }
       if (cm[tau] < bestVal) { bestVal = cm[tau]; best = tau; }
     }
-    if (best < tauMin || bestVal > 0.5) return [0, 0];
+    if (best < tauMin || bestVal > 0.5) return 0;
     let t = best;
     if (best > 1 && best < tauMax) {
       const a = cm[best - 1], b = cm[best], c = cm[best + 1];
       const den = 2 * (2 * b - a - c);
       if (den !== 0) t = best + (c - a) / den;
     }
-    return [sr / t, 1 - bestVal];
+    return sr / t;
   }
 
   process(inputs) {
+    const t0 = this.hasPerf ? performance.now() : 0;
+
     const input = inputs[0];
     if (!input || !input[0]) return true;
     const ch = input[0];
@@ -208,6 +260,9 @@ class CaptureProcessor extends AudioWorkletProcessor {
       }
       this.lastFrame = currentFrame;
     }
+    this.blocks++;
+
+    const hop = Math.max(1, Math.round(this.baseHop / this.loadMult));
 
     for (let i = 0; i < N; i++) {
       const s = ch[i];
@@ -229,26 +284,33 @@ class CaptureProcessor extends AudioWorkletProcessor {
         this.ring[this.ringPos] = this.decAcc / this.dec;
         this.ringPos = (this.ringPos + 1) % this.RING;
         this.decAcc = 0; this.decN = 0;
-        this.sinceYin++;
+
+        if (this.yinOn && ++this.sinceYin >= hop) {
+          this.sinceYin = 0;
+          let p = (this.ringPos - this.winDec + this.RING) % this.RING;
+          for (let k = 0; k < this.winDec; k++) {
+            this.win[k] = this.ring[p]; p = (p + 1) % this.RING;
+          }
+          this.f0 = this.yin(this.win, this.winDec, this.decRate);
+        }
       }
     }
+    if (!this.yinOn) this.f0 = 0;
 
-    if (this.yinOn && this.sinceYin >= this.hopDec) {
-      this.sinceYin = 0;
-      const w = new Float32Array(this.winDec);
-      let p = (this.ringPos - this.winDec + this.RING) % this.RING;
-      for (let i = 0; i < this.winDec; i++) { w[i] = this.ring[p]; p = (p + 1) % this.RING; }
-      const r = this.yin(w, this.winDec, this.decRate);
-      this.f0 = r[0]; this.clarity = r[1];
-    } else if (!this.yinOn) {
-      this.f0 = 0; this.clarity = 0;
+    if (this.hasPerf) {
+      this.times[this.timePos] = performance.now() - t0;
+      this.timePos = (this.timePos + 1) % this.TN;
+      if (this.timeFilled < this.TN) this.timeFilled++;
     }
 
     if (typeof currentFrame !== 'number' || (currentFrame % 4096) < N) {
-      this.port.postMessage({ type: 'stat', gaps: this.gapCount, maxGap: this.maxGap,
-                              peak: this.peak, clipped: this.clipped,
-                              f0: this.f0, clarity: this.clarity,
-                              recorded: this.recording });
+      const msg = { type: 'stat', gaps: this.gapCount, maxGap: this.maxGap,
+                    blocks: this.blocks, peak: this.peak, clipped: this.clipped,
+                    f0: this.f0, ctxTime: currentTime };
+      if (this.hasPerf && this.timeFilled > 0) {
+        msg.times = this.times.slice(0, this.timeFilled);
+      }
+      this.port.postMessage(msg);
     }
     return true;
   }
@@ -260,20 +322,24 @@ registerProcessor('capture', CaptureProcessor);
 const $ = id => document.getElementById(id);
 const logEl = $('log');
 let lines = [];
-function log(s){ lines.push(s); if(lines.length>40) lines.shift();
-  logEl.textContent = lines.join('\n'); }
+function log(s){ lines.push(s); if(lines.length>60) lines.shift();
+  logEl.textContent = lines.join('\n'); logEl.scrollTop = logEl.scrollHeight; }
 
 function row(k, v, cls){ return '<div class="row"><span class="k">'+k+
   '</span><span class="v '+(cls||'')+'">'+v+'</span></div>'; }
 
 let ctx=null, node=null, track=null, stream=null;
-let chunks=[], recording=false, recStart=0;
-let arrivals=[], lastArrival=0;
+let chunks=[], recording=false;
+let hasPerf=false, budgetUs=0;
+let loadMult=1, yinOn=true;
+let resetWall=0, baseCtxTime=null, lastStat=null;
+
+function condName(){ return yinOn ? ('YIN ON, load '+loadMult+'x') : 'YIN OFF'; }
 
 $('btnMic').onclick = async () => {
   $('btnMic').disabled = true;
   try {
-    log('Requesting microphone…');
+    log('Requesting microphone...');
     stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation:false, noiseSuppression:false,
                autoGainControl:false, channelCount:1 },
@@ -281,90 +347,169 @@ $('btnMic').onclick = async () => {
     });
     track = stream.getAudioTracks()[0];
     const st = track.getSettings ? track.getSettings() : {};
-    log('Microphone granted: ' + (track.label || '(no label)'));
 
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     await ctx.resume();
-    log('AudioContext sampleRate = ' + ctx.sampleRate);
+    budgetUs = 128 / ctx.sampleRate * 1e6;
+    $('mP50b').textContent = 'of ' + Math.round(budgetUs) + ' \u00B5s budget';
 
     const src = document.getElementById('workletSrc').textContent;
     const url = URL.createObjectURL(new Blob([src], {type:'application/javascript'}));
     await ctx.audioWorklet.addModule(url);
-    log('AudioWorklet module loaded.');
-
     node = new AudioWorkletNode(ctx, 'capture', {numberOfOutputs:0});
     node.port.onmessage = onWorklet;
     ctx.createMediaStreamSource(stream).connect(node);
-    log('Worklet running.');
 
     const flag = (name) => {
       const got = st[name];
       if (got === undefined) return ['not reported', 'warn'];
-      return got === false ? ['false — honored','ok'] : [String(got)+' — NOT honored','bad'];
+      return got === false ? ['false \u2014 honored','ok']
+                           : [String(got)+' \u2014 NOT honored','bad'];
     };
     const ec=flag('echoCancellation'), ns=flag('noiseSuppression'), agc=flag('autoGainControl');
     $('micRows').innerHTML =
       row('AudioContext rate', ctx.sampleRate + ' Hz') +
-      row('Track rate', (st.sampleRate||'not reported') + (st.sampleRate?' Hz':'')) +
-      row('Channels', st.channelCount || 'not reported') +
+      row('Block budget', Math.round(budgetUs) + ' \u00B5s') +
       row('Device', track.label || 'not reported') +
       row('echoCancellation', ec[0], ec[1]) +
       row('noiseSuppression', ns[0], ns[1]) +
       row('autoGainControl', agc[0], agc[1]);
-
     const bad = [ec,ns,agc].filter(x=>x[1]==='bad').length;
     $('micNote').innerHTML = bad
-      ? '<span class="bad">iOS did not honor '+bad+' request(s). Note this — it affects everything downstream.</span>'
-      : '<span class="ok">All raw-capture requests honored.</span>';
+      ? '<span class="bad">iOS did not honor '+bad+' request(s).</span>'
+      : '<span class="ok">No request was reported as overridden.</span>';
 
-    log('Full getSettings(): ' + JSON.stringify(st));
-    log('Supported constraints: ' + JSON.stringify(navigator.mediaDevices.getSupportedConstraints()));
-    log('User agent: ' + navigator.userAgent);
+    log('Mic granted. Rate ' + ctx.sampleRate + ' Hz, budget ' +
+        Math.round(budgetUs) + ' us per block.');
+    log('getSettings(): ' + JSON.stringify(st));
+    log('UA: ' + navigator.userAgent);
+    resetStats(false);
     $('btnRec').disabled = false;
     $('btnMic').textContent = 'Microphone running';
   } catch (err) {
     $('btnMic').disabled = false;
-    $('micNote').innerHTML = '<span class="bad">Failed: '+err.name+' — '+err.message+'</span>';
+    $('micNote').innerHTML = '<span class="bad">Failed: '+err.name+' \u2014 '+err.message+'</span>';
     log('ERROR ' + err.name + ': ' + err.message);
   }
 };
 
+function summarize(){
+  if (!lastStat || !resetWall) return null;
+  const secs = (performance.now() - resetWall)/1000;
+  let t = '';
+  if (lastStat.p50 !== undefined){
+    t = ' | p50 ' + Math.round(lastStat.p50) + 'us (' + pctOf(lastStat.p50) +
+        '%), p95 ' + Math.round(lastStat.p95) + 'us (' + pctOf(lastStat.p95) +
+        '%), max ' + Math.round(lastStat.max) + 'us (' + pctOf(lastStat.max) + '%)';
+  } else {
+    t = ' | process timing unavailable';
+  }
+  return secs.toFixed(0) + 's | gaps ' + lastStat.gaps +
+         ' (maxGap ' + lastStat.maxGap + ') | drift ' +
+         (lastStat.driftRate === undefined ? '?' : lastStat.driftRate.toFixed(1)) +
+         ' ms/min' + t;
+}
+function pctOf(us){ return (us/budgetUs*100).toFixed(1); }
+
+function resetStats(logPrevious){
+  if (logPrevious){
+    const s = summarize();
+    if (s) log('RESULT [' + window.__prevCond + ']  ' + s);
+  }
+  window.__prevCond = condName();
+  if (node) node.port.postMessage({cmd:'reset'});
+  resetWall = performance.now();
+  baseCtxTime = null;
+  lastStat = null;
+  $('mCond').textContent = condName();
+}
+
 $('chkYin').onchange = e => {
-  if (node) node.port.postMessage({cmd:'yin', on:e.target.checked});
-  arrivals = []; if (node) node.port.postMessage({cmd:'resetStats'});
-  log('YIN ' + (e.target.checked ? 'ON' : 'OFF') + ' — stats reset.');
+  resetStats(true);
+  yinOn = e.target.checked;
+  node.port.postMessage({cmd:'yin', on:yinOn});
+  window.__prevCond = condName();
+  $('mCond').textContent = condName();
+  log('--> switched to: ' + condName());
 };
+
+$('segLoad').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  resetStats(true);
+  loadMult = parseInt(b.dataset.load, 10);
+  [].forEach.call($('segLoad').children, x => x.classList.toggle('on', x === b));
+  node.port.postMessage({cmd:'load', value: loadMult});
+  window.__prevCond = condName();
+  $('mCond').textContent = condName();
+  log('--> switched to: ' + condName());
+};
+
+$('btnReset').onclick = () => { resetStats(true); log('--> counters reset: ' + condName()); };
 
 function onWorklet(e){
   const m = e.data;
-  if (m.type === 'ready'){ log('Worklet ready. Analysis rate ' + Math.round(m.decRate) + ' Hz.'); return; }
-  if (m.type === 'audio'){ if (recording) chunks.push(new Float32Array(m.data)); return; }
-  if (m.type === 'stat'){
-    const now = performance.now();
-    if (lastArrival) { arrivals.push(now - lastArrival); if (arrivals.length > 200) arrivals.shift(); }
-    lastArrival = now;
-
-    if (arrivals.length > 20){
-      const s = arrivals.slice().sort((a,b)=>a-b);
-      const p95 = s[Math.floor(s.length*0.95)];
-      const el = $('mJitter');
-      el.textContent = p95.toFixed(1)+'ms';
-      el.className = 'big ' + (p95 < 110 ? 'ok' : p95 < 140 ? 'warn' : 'bad');
-    }
-    const g = $('mGaps');
-    g.textContent = m.gaps;
-    g.className = 'big ' + (m.gaps === 0 ? 'ok' : m.gaps < 5 ? 'warn' : 'bad');
-
-    $('mPitch').textContent = m.f0 > 0 ? Math.round(m.f0)+'Hz' : '—';
-    const pk = $('mPeak');
-    pk.textContent = m.peak > 0 ? (20*Math.log10(m.peak)).toFixed(1)+'dB' : '—';
-    pk.className = 'big ' + (m.peak > 0.99 ? 'bad' : m.peak > 0.05 ? 'ok' : 'warn');
+  if (m.type === 'ready'){
+    hasPerf = m.hasPerf;
+    log('Worklet ready. Analysis rate ' + Math.round(m.decRate) +
+        ' Hz. process() timing: ' + (hasPerf ? 'AVAILABLE (performance.now)'
+                                             : 'NOT AVAILABLE on this browser'));
+    $('timingNote').innerHTML = hasPerf
+      ? 'process() timing is available, so the microsecond figures above are real. The load multiplier is a cross-check.'
+      : '<span class="warn">process() timing is not available in this browser\u2019s AudioWorklet. The load multiplier and block-gap count are the authoritative measurement.</span>';
+    return;
   }
+  if (m.type === 'audio'){ if (recording) chunks.push(new Float32Array(m.data)); return; }
+  if (m.type !== 'stat') return;
+
+  if (baseCtxTime === null){ baseCtxTime = m.ctxTime; resetWall = performance.now(); }
+  const wallSec = (performance.now() - resetWall)/1000;
+  const audioSec = m.ctxTime - baseCtxTime;
+  const driftRate = wallSec > 3 ? (wallSec - audioSec)*1000 / (wallSec/60) : undefined;
+
+  lastStat = { gaps:m.gaps, maxGap:m.maxGap, driftRate:driftRate };
+
+  if (m.times && m.times.length > 20){
+    const s = Array.from(m.times).sort((a,b)=>a-b);
+    const p = q => s[Math.min(s.length-1, Math.floor(s.length*q))]*1000;
+    const p50=p(0.5), p95=p(0.95), mx=s[s.length-1]*1000;
+    lastStat.p50=p50; lastStat.p95=p95; lastStat.max=mx;
+    setUs('mP50','mP50b',p50,25,60,true);
+    setUs('mP95','mP95b',p95,25,60);
+    setUs('mMax','mMaxb',mx,50,90);
+  } else if (!hasPerf){
+    $('mP50').textContent='n/a'; $('mP95').textContent='n/a'; $('mMax').textContent='n/a';
+  }
+
+  const g = $('mGaps');
+  g.textContent = m.gaps;
+  g.className = 'big ' + (m.gaps === 0 ? 'ok' : m.gaps < 5 ? 'warn' : 'bad');
+  $('mGapsb').textContent = m.blocks + ' blocks, worst ' + m.maxGap;
+
+  $('mElapsed').textContent = wallSec.toFixed(0) + 's';
+  const d = $('mDrift');
+  if (driftRate === undefined){ d.textContent = '—'; }
+  else { d.textContent = driftRate.toFixed(1);
+         d.className = 'big ' + (Math.abs(driftRate) < 30 ? 'ok'
+                       : Math.abs(driftRate) < 120 ? 'warn' : 'bad'); }
+
+  $('mPitch').textContent = m.f0 > 0 ? Math.round(m.f0)+'Hz' : '—';
+  const pk = $('mPeak');
+  pk.textContent = m.peak > 0 ? (20*Math.log10(m.peak)).toFixed(1)+'dB' : '—';
+  pk.className = 'big ' + (m.peak > 0.99 ? 'bad' : m.peak > 0.05 ? 'ok' : 'warn');
+}
+
+function setUs(idA, idB, us, warnPct, badPct, keepSub){
+  const pc = us/budgetUs*100;
+  const el = $(idA);
+  el.textContent = Math.round(us) + '\u00B5s';
+  el.className = 'big ' + (pc < warnPct ? 'ok' : pc < badPct ? 'warn' : 'bad');
+  if (!keepSub) $(idB).textContent = pc.toFixed(1) + '% of budget';
+  else $(idB).textContent = pc.toFixed(1) + '% of ' + Math.round(budgetUs) + '\u00B5s';
 }
 
 $('btnRec').onclick = () => {
   if (!recording){
-    chunks = []; recording = true; recStart = Date.now();
+    chunks = []; recording = true;
     node.port.postMessage({cmd:'record', on:true});
     $('btnRec').textContent = 'Stop';
     $('dl').className = 'dl hidden';
@@ -384,17 +529,16 @@ function finish(){
   const all = new Float32Array(total);
   let o = 0; chunks.forEach(c => { all.set(c, o); o += c.length; });
 
-  let peak = 0, clip = 0, sum = 0;
-  for (let i=0;i<all.length;i++){ const a = Math.abs(all[i]);
-    if (a>peak) peak=a; if (a>=0.995) clip++; sum += all[i]*all[i]; }
+  let peak=0, clip=0, sum=0;
+  for (let i=0;i<all.length;i++){ const a=Math.abs(all[i]);
+    if(a>peak)peak=a; if(a>=0.995)clip++; sum+=all[i]*all[i]; }
   const rms = Math.sqrt(sum/all.length);
   const secs = all.length / ctx.sampleRate;
 
   const wav = encodeWav(all, ctx.sampleRate);
   const stamp = new Date().toISOString().replace(/[-:]/g,'').slice(0,15);
-  const url = URL.createObjectURL(wav);
   const a = $('dl');
-  a.href = url;
+  a.href = URL.createObjectURL(wav);
   a.download = 'checkpoint1_' + stamp + '_' + ctx.sampleRate + 'Hz.wav';
   a.className = 'dl';
 
