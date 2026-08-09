@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Flight Engine — Recording Protocol v1</title>
+<style>
+  :root{
+    --ink:#12161c; --panel:#1b222c; --line:#2c3644; --paper:#f2f4f7;
+    --dim:#8c99aa; --ok:#3ec98a; --warn:#e8b34a; --bad:#ef6a5e; --signal:#6ba8ff;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--ink);color:var(--paper);
+    font-family:ui-sans-serif,-apple-system,"Helvetica Neue",sans-serif;
+    font-size:17px;line-height:1.45;padding-bottom:env(safe-area-inset-bottom)}
+  .wrap{max-width:760px;margin:0 auto;padding:18px 18px 60px}
+  h1{font-size:19px;margin:0 0 2px}
+  .sub{color:var(--dim);font-size:13.5px;margin:0 0 18px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:16px;margin-bottom:14px}
+  .card h2{font-size:11.5px;text-transform:uppercase;letter-spacing:0.09em;
+    color:var(--dim);margin:0 0 12px;font-weight:600}
+  button{font:inherit;font-weight:600;border:0;border-radius:10px;
+    padding:16px 20px;width:100%;margin-bottom:10px;color:#0d1116;
+    background:var(--paper);cursor:pointer}
+  button:disabled{opacity:.3}
+  button.primary{background:var(--signal);color:#08101d}
+  button.rec{background:var(--bad);color:#1b0c0a;font-size:20px;padding:22px}
+  button.ghost{background:transparent;color:var(--paper);border:1px solid var(--line)}
+  button.good{background:var(--ok);color:#04180f}
+  .two{display:flex;gap:10px} .two button{margin-bottom:0}
+  .row{display:flex;justify-content:space-between;gap:12px;
+    padding:6px 0;border-bottom:1px solid var(--line);font-size:14.5px}
+  .row:last-child{border-bottom:0}
+  .row .k{color:var(--dim)}
+  .row .v{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;text-align:right}
+  .ok{color:var(--ok)} .warn{color:var(--warn)} .bad{color:var(--bad)} .dimc{color:var(--dim)}
+  .prompt{font-size:30px;line-height:1.2;font-weight:600;margin:6px 0 14px;
+    letter-spacing:-0.015em}
+  .hint{color:var(--dim);font-size:15px;margin:-8px 0 14px}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px}
+  .chip{font-size:12.5px;padding:5px 10px;border-radius:99px;
+    border:1px solid var(--line);color:var(--dim);
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .chip.hi{border-color:var(--signal);color:var(--signal)}
+  .chip.alert{border-color:var(--warn);color:var(--warn)}
+  .meter{position:relative;height:34px;background:#0e1319;border:1px solid var(--line);
+    border-radius:8px;overflow:hidden;margin:8px 0 6px}
+  .meter .fill{position:absolute;left:0;top:0;bottom:0;width:0%;background:var(--signal);
+    transition:width .05s linear}
+  .meter .zone{position:absolute;top:0;bottom:0;border-left:2px solid var(--ok);
+    border-right:2px solid var(--ok);background:rgba(62,201,138,.14)}
+  .meter .lbl{position:absolute;right:8px;top:6px;font-size:14px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .bar{height:8px;background:#0e1319;border-radius:99px;overflow:hidden;margin:12px 0}
+  .bar i{display:block;height:100%;background:var(--signal);width:0%}
+  .count{font-size:76px;text-align:center;font-weight:700;line-height:1.1;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .go{color:var(--ok)}
+  select,input{font:inherit;background:#0e1319;color:var(--paper);
+    border:1px solid var(--line);border-radius:8px;padding:12px;width:100%}
+  .note{font-size:13px;color:var(--dim);margin-top:10px}
+  .hidden{display:none}
+  audio{width:100%;margin:10px 0}
+  .blocklist{display:flex;flex-direction:column;gap:8px}
+  .blockrow{display:flex;align-items:center;gap:10px;font-size:14.5px}
+  .blockrow span{flex:1;color:var(--dim)}
+  .blockrow button{width:auto;padding:9px 14px;margin:0;font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Flight Engine — Recording Protocol v1</h1>
+  <p class="sub" id="sessionLine">51 clips &middot; raw 48 kHz / 16-bit / mono</p>
+
+  <!-- SETUP -->
+  <div class="card" id="cardSetup">
+    <h2>Setup</h2>
+    <div style="margin-bottom:12px">
+      <div class="note" style="margin:0 0 6px">Speaker ID</div>
+      <input id="inSpeaker" value="peter">
+    </div>
+    <div style="margin-bottom:16px">
+      <div class="note" style="margin:0 0 6px">Session ID</div>
+      <input id="inSession">
+    </div>
+    <button id="btnStart" class="primary">Start microphone</button>
+    <div id="setupRows"></div>
+    <div class="note" id="setupNote"></div>
+  </div>
+
+  <!-- LEVEL -->
+  <div class="card hidden" id="cardLevel">
+    <h2>Input level</h2>
+    <div class="meter">
+      <div class="fill" id="meterFill"></div>
+      <div class="zone" id="meterZone"></div>
+      <div class="lbl" id="meterLbl">—</div>
+    </div>
+    <div class="note">Green zone is &minus;18 to &minus;6 dBFS. Aim for peaks around &minus;12. If you sit below the zone, move closer or speak up.</div>
+  </div>
+
+  <!-- EXERCISE -->
+  <div class="card hidden" id="cardEx">
+    <h2><span id="exPos"></span></h2>
+    <div class="bar"><i id="progAll"></i></div>
+    <div class="prompt" id="exPrompt"></div>
+    <div class="hint" id="exHint"></div>
+    <div class="chips" id="exChips"></div>
+
+    <div id="stageIdle">
+      <button class="rec" id="btnRec">Record take <span id="takeNo"></span></button>
+      <div class="two">
+        <button class="ghost" id="btnSkip">Skip exercise</button>
+        <button class="ghost" id="btnJumpOpen">Jump to&hellip;</button>
+      </div>
+    </div>
+
+    <div id="stageCount" class="hidden">
+      <div class="count" id="countNum">3</div>
+      <div class="note" style="text-align:center" id="countMsg">Get ready</div>
+    </div>
+
+    <div id="stageReview" class="hidden">
+      <div id="revRows"></div>
+      <audio id="revAudio" controls playsinline></audio>
+      <div class="two" style="margin-bottom:10px">
+        <button class="good" id="btnKeep">Keep</button>
+        <button class="ghost" id="btnSpoil">Flag spoiled &amp; retake</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JUMP -->
+  <div class="card hidden" id="cardJump">
+    <h2>Jump to exercise</h2>
+    <select id="selJump" size="10"></select>
+    <div class="two" style="margin-top:12px">
+      <button class="primary" id="btnJumpGo">Go</button>
+      <button class="ghost" id="btnJumpCancel">Cancel</button>
+    </div>
+    <div class="note">Reloading the page starts a new session ID. Take numbers restart, but filenames stay unique because the session ID is part of every name.</div>
+  </div>
+
+  <!-- DOWNLOADS -->
+  <div class="card hidden" id="cardDl">
+    <h2>Downloads</h2>
+    <div class="blocklist" id="dlList"></div>
+    <button class="ghost" id="btnAll" style="margin-top:14px">Download full session ZIP</button>
+    <div class="note">Each block ZIP holds that block&rsquo;s WAV files plus a manifest covering only those files. Save each block before moving on.</div>
+  </div>
+
+  <div class="card">
+    <h2>Log</h2>
+    <pre id="log" style="background:#0e1319;border:1px solid var(--line);border-radius:8px;
+      padding:12px;overflow-x:auto;font-size:12.5px;margin:0;white-space:pre-wrap;
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#c6d2e0">Not started.</pre>
+  </div>
+
+</div>
+
+<script id="workletSrc" type="text/plain">
+class Capture extends AudioWorkletProcessor {
+  constructor(){
+    super();
+    this.rec=false;
+    this.CH=4096;
+    this.buf=new Float32Array(this.CH);
+    this.pos=0;
+    this.peakWin=0;
+    this.sincePeak=0;
+    this.port.onmessage=(e)=>{
+      const m=e.data;
+      if(m.cmd==='record'){
+        if(m.on){ this.pos=0; this.rec=true; }
+        else {
+          this.rec=false;
+          // TAIL FIX: flush the partial chunk so the end of the take is never lost.
+          if(this.pos>0){
+            const tail=this.buf.slice(0,this.pos);
+            this.port.postMessage({type:'audio',data:tail},[tail.buffer]);
+            this.pos=0;
+          }
+          this.port.postMessage({type:'done'});
+        }
+      }
+    };
+  }
+  process(inputs){
+    const inp=inputs[0];
+    if(!inp||!inp[0]) return true;
+    const ch=inp[0], N=ch.length;
+    for(let i=0;i<N;i++){
+      const s=ch[i], a=s<0?-s:s;
+      if(a>this.peakWin) this.peakWin=a;
+      if(this.rec){
+        this.buf[this.pos++]=s;
+        if(this.pos===this.CH){
+          const c=this.buf.slice();
+          this.port.postMessage({type:'audio',data:c},[c.buffer]);
+          this.pos=0;
+        }
+      }
+    }
+    this.sincePeak+=N;
+    if(this.sincePeak>=2048){
+      this.sincePeak=0;
+      this.port.postMessage({type:'level',peak:this.peakWin});
+      this.peakWin=0;
+    }
+    return true;
+  }
+}
+registerProcessor('capture',Capture);
+</script>
+
+<script>
+/* ============================================================
+   RECORDING PROTOCOL v1  —  Flight Engine evaluation set
+   ------------------------------------------------------------
+   This recorder captures raw audio only. It applies NO smoothing,
+   filtering, resampling, voicing gate, or scoring of any kind.
+
+   DOCUMENTED EVALUATION PARAMETER (not applied here, for the
+   offline harness only):
+     YIN clarity gate = 0.7
+     Derived in Checkpoint 1c: 98.5% voiced coverage inside the
+     speech region with zero false voicing in silence. At 0.6 the
+     false-voicing rate rose to 6.3 frames/s.
+
+   Every take is padded: LEAD_IN before the prompted window and
+   TAIL after it, so voicing onset and offset always sit inside
+   recorded silence.
+   ============================================================ */
+const RECORDER_VERSION='protocol-v1';
+const SET_VERSION='set-v1';
+const LEAD_IN=500, TAIL=700;   // ms
+
+const EX=[
+ // ---- BLOCK A : calibration and device probes ----
+ {b:'A',id:'A1',takes:3,dur:3000,prompt:'Sustained “ah”',
+  hint:'Comfortable pitch and volume. Just hold it steady.',
+  target:'level',produced:'level',type:'calibration',dist:25,env:'quiet',
+  level:'normal',prescribed:true},
+ {b:'A',id:'A2',takes:2,dur:4000,prompt:'“Ah” — very quiet, growing to loud',
+  hint:'Start almost inaudible and swell smoothly. This probes automatic gain control.',
+  target:'level',produced:'crescendo',type:'probe',dist:25,env:'quiet',
+  level:'any',prescribed:true},
+ {b:'A',id:'A3',takes:1,dur:10000,prompt:'Say nothing',
+  hint:'Stay still and quiet for the full ten seconds. This probes noise suppression and false voicing.',
+  target:'silence',produced:'silence',type:'control',dist:25,env:'quiet',
+  level:'any',prescribed:false},
+
+ // ---- BLOCK B : core contours ----
+ {b:'B',id:'B1',takes:3,dur:1200,prompt:'Steady “ah”',
+  hint:'Hold the pitch as flat as you can.',
+  target:'level',produced:'level',type:'normal',dist:25,env:'quiet',
+  level:'normal',prescribed:true},
+ {b:'B',id:'B2',takes:3,dur:1200,prompt:'“Ah” gliding upward',
+  hint:'One smooth rise from low to high.',
+  target:'rising',produced:'rising',type:'normal',dist:25,env:'quiet',
+  level:'normal',prescribed:true},
+ {b:'B',id:'B3',takes:3,dur:1200,prompt:'“Ah” gliding downward',
+  hint:'One smooth fall from high to low.',
+  target:'falling',produced:'falling',type:'normal',dist:25,env:'quiet',
+  level:'normal',prescribed:true},
+ {b:'B',id:'B4',takes:3,dur:1200,prompt:'“Ah” dipping, then recovering',
+  hint:'Fall to the bottom, then come back up.',
+  target:'dip',produced:'dip',type:'normal',dist:25,env:'quiet',
+  level:'normal',prescribed:true},
+ {b:'B',id:'B5',takes:3,dur:400,prompt:'“Ah” — one sharp fast drop',
+  hint:'Short and decisive. Do not stretch it out.',
+  target:'falling_short',produced:'falling_short',type:'normal',dist:25,env:'quiet',
+  level:'normal',prescribed:true},
+
+ // ---- BLOCK C : deliberate error and marginal input ----
+ {b:'C',id:'C1',takes:3,dur:1200,prompt:'Course asks FALLING — produce RISING',
+  hint:'Deliberate mismatch. Glide upward even though the target is a fall.',
+  target:'falling',produced:'rising',type:'deliberate_error',dist:25,env:'quiet',
+  level:'normal',prescribed:true},
+ {b:'C',id:'C2',takes:3,dur:1200,prompt:'Rising “ah” — weak and mumbled',
+  hint:'Quiet, unclear, half-hearted. A realistically poor attempt.',
+  target:'rising',produced:'rising',type:'marginal',dist:25,env:'quiet',
+  level:'quiet',prescribed:true},
+
+ // ---- BLOCK D : adversarial voice qualities (diagnostic only) ----
+ {b:'D',id:'D1',takes:2,dur:1500,prompt:'Low creaky “ah”',
+  hint:'Bottom of your range, let it rattle. Expected to be hard to track.',
+  target:'creak',produced:'creak',type:'adversarial',dist:25,env:'quiet',
+  level:'any',prescribed:true},
+ {b:'D',id:'D2',takes:2,dur:1500,prompt:'Whispered “ah”',
+  hint:'No voice at all — pure whisper. Expected to produce no pitch.',
+  target:'whisper',produced:'whisper',type:'adversarial',dist:25,env:'quiet',
+  level:'any',prescribed:true},
+
+ // ---- BLOCK E : environment robustness ----
+ {b:'E',id:'E1',takes:2,dur:1200,prompt:'Steady “ah” — from 150 cm',
+  hint:'Move the iPad about an arm and a half away. Same production as B1.',
+  target:'level',produced:'level',type:'normal',dist:150,env:'quiet',
+  level:'normal',prescribed:true},
+ {b:'E',id:'E2',takes:2,dur:1200,prompt:'Rising “ah” — from 150 cm',
+  hint:'Still at 150 cm. Same production as B2.',
+  target:'rising',produced:'rising',type:'normal',dist:150,env:'quiet',
+  level:'normal',prescribed:true},
+ {b:'E',id:'E3',takes:2,dur:1200,prompt:'Steady “ah” — 25 cm, noise on',
+  hint:'Back to 25 cm. Turn on a fan or TV before this take.',
+  target:'level',produced:'level',type:'normal',dist:25,env:'noisy',
+  level:'normal',prescribed:true},
+ {b:'E',id:'E4',takes:2,dur:1200,prompt:'Rising “ah” — 25 cm, noise on',
+  hint:'Keep the noise running.',
+  target:'rising',produced:'rising',type:'normal',dist:25,env:'noisy',
+  level:'normal',prescribed:true},
+
+ // ---- BLOCK F : real syllables ----
+ {b:'F',id:'F1',takes:3,dur:1200,prompt:'mā  媽',
+  hint:'Natural isolated syllable. The window is generous — do not stretch the syllable to fill it.',
+  target:'tone1',produced:'tone1',type:'normal',dist:25,env:'quiet',
+  level:'normal',prescribed:false},
+ {b:'F',id:'F2',takes:3,dur:1200,prompt:'má  麻',
+  hint:'Natural isolated syllable.',
+  target:'tone2',produced:'tone2',type:'normal',dist:25,env:'quiet',
+  level:'normal',prescribed:false},
+ {b:'F',id:'F3',takes:3,dur:1200,prompt:'mǎ  馬',
+  hint:'Natural isolated syllable. Full third tone, not the shortened form.',
+  target:'tone3',produced:'tone3',type:'normal',dist:25,env:'quiet',
+  level:'normal',prescribed:false},
+ {b:'F',id:'F4',takes:3,dur:1200,prompt:'mà  罵',
+  hint:'Natural isolated syllable.',
+  target:'tone4',produced:'tone4',type:'normal',dist:25,env:'quiet',
+  level:'normal',prescribed:false}
+];
+
+const BLOCK_NAME={A:'Calibration & probes',B:'Core contours',
+  C:'Errors & marginal',D:'Adversarial',E:'Environment',F:'Syllables'};
+
+// Flatten into slots
+const SLOTS=[];
+EX.forEach(e=>{ for(let t=1;t<=e.takes;t++) SLOTS.push({ex:e,take:t}); });
+
+const $=id=>document.getElementById(id);
+let lines=[];
+function log(s){lines.push(s);if(lines.length>80)lines.shift();
+  $('log').textContent=lines.join('\n');}
+
+let ctx,node,stream,track,settings={};
+let idx=0, chunks=[], recActive=false, suspendedDuringTake=false;
+let takeCounter={};          // exercise id -> highest take number used
+let records=[];              // all completed takes
+let pendingRec=null;
+let meterHold=0, meterTimer=null;
+
+$('inSession').value = new Date().toISOString().replace(/[-:T]/g,'').slice(0,12);
+
+/* ---------- setup ---------- */
+$('btnStart').onclick=async()=>{
+  $('btnStart').disabled=true;
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({audio:{
+      echoCancellation:false,noiseSuppression:false,autoGainControl:false,channelCount:1
+    },video:false});
+    track=stream.getAudioTracks()[0];
+    settings=track.getSettings?track.getSettings():{};
+    ctx=new (window.AudioContext||window.webkitAudioContext)();
+    await ctx.resume();
+    ctx.onstatechange=()=>{
+      log('AudioContext state -> '+ctx.state);
+      if(ctx.state!=='running'&&recActive){
+        suspendedDuringTake=true;
+        log('!! context left running during a take — this take will be marked invalid');
+      }
+    };
+    const src=$('workletSrc').textContent;
+    await ctx.audioWorklet.addModule(URL.createObjectURL(
+      new Blob([src],{type:'application/javascript'})));
+    node=new AudioWorkletNode(ctx,'capture',{numberOfOutputs:0});
+    node.port.onmessage=onMsg;
+    ctx.createMediaStreamSource(stream).connect(node);
+
+    const f=n=>settings[n]===undefined?['not reported','warn']
+      :settings[n]===false?['false — honored','ok']:[String(settings[n])+' — NOT honored','bad'];
+    const rows=(k,v,c)=>'<div class="row"><span class="k">'+k+
+      '</span><span class="v '+(c||'')+'">'+v+'</span></div>';
+    const ec=f('echoCancellation'),ns=f('noiseSuppression'),ag=f('autoGainControl');
+    $('setupRows').innerHTML=rows('Sample rate',ctx.sampleRate+' Hz')+
+      rows('Device',track.label||'not reported')+
+      rows('echoCancellation',ec[0],ec[1])+rows('noiseSuppression',ns[0],ns[1])+
+      rows('autoGainControl',ag[0],ag[1]);
+    if(ctx.sampleRate!==48000)
+      $('setupNote').innerHTML='<span class="warn">Sample rate is '+ctx.sampleRate+
+        ' Hz, not 48000. Note this in the session.</span>';
+
+    // meter green zone: -18..-6 dBFS on a -60..0 scale
+    $('meterZone').style.left=((-18+60)/60*100)+'%';
+    $('meterZone').style.width=((12)/60*100)+'%';
+
+    $('cardSetup').classList.add('hidden');
+    $('cardLevel').classList.remove('hidden');
+    $('cardEx').classList.remove('hidden');
+    $('cardDl').classList.remove('hidden');
+    $('sessionLine').textContent=speaker()+' · '+session()+' · '+SET_VERSION+
+      ' · '+SLOTS.length+' clips';
+    buildJump(); renderDl(); render();
+    log('Ready. '+ctx.sampleRate+' Hz. '+SLOTS.length+' slots queued.');
+  }catch(e){
+    $('btnStart').disabled=false;
+    $('setupNote').innerHTML='<span class="bad">'+e.name+': '+e.message+'</span>';
+    log('ERROR '+e.name+': '+e.message);
+  }
+};
+const speaker=()=>($('inSpeaker').value||'speaker').replace(/[^A-Za-z0-9_-]/g,'');
+const session=()=>('s'+($('inSession').value||'0').replace(/[^A-Za-z0-9_-]/g,''));
+
+/* ---------- worklet messages ---------- */
+function onMsg(e){
+  const m=e.data;
+  if(m.type==='level'){
+    const db=m.peak>0?20*Math.log10(m.peak):-99;
+    if(db>meterHold) meterHold=db;
+    const pc=Math.max(0,Math.min(100,(db+60)/60*100));
+    $('meterFill').style.width=pc+'%';
+    $('meterFill').style.background = db>-3?'var(--bad)':(db>=-18&&db<=-6)?'var(--ok)':
+      db>-6?'var(--warn)':'var(--signal)';
+    $('meterLbl').textContent=db>-99?db.toFixed(0)+' dB':'—';
+    return;
+  }
+  if(m.type==='audio'){ if(recActive||pendingRec) chunks.push(new Float32Array(m.data)); return; }
+  if(m.type==='done'){ finalize(); return; }
+}
+
+/* ---------- render current slot ---------- */
+function render(){
+  if(idx>=SLOTS.length){
+    $('exPos').textContent='Protocol complete';
+    $('exPrompt').textContent='All '+SLOTS.length+' slots done';
+    $('exHint').textContent='Download the full session ZIP below.';
+    $('exChips').innerHTML=''; $('stageIdle').classList.add('hidden');
+    return;
+  }
+  const s=SLOTS[idx], e=s.ex;
+  const done=SLOTS.filter((_,i)=>i<idx).length;
+  $('exPos').textContent='Block '+e.b+' — '+BLOCK_NAME[e.b]+
+    '  ·  slot '+(idx+1)+' of '+SLOTS.length;
+  $('progAll').style.width=(done/SLOTS.length*100)+'%';
+  $('exPrompt').textContent=e.prompt;
+  $('exHint').textContent=e.hint;
+  const chip=(t,c)=>'<span class="chip '+(c||'')+'">'+t+'</span>';
+  $('exChips').innerHTML=
+    chip(e.id+' take '+nextTake(e.id),'hi')+
+    chip('target: '+e.target,(e.target!==e.produced)?'alert':'')+
+    (e.target!==e.produced?chip('produce: '+e.produced,'alert'):'')+
+    chip(e.type,e.type==='normal'?'':'alert')+
+    chip(e.dist+' cm',e.dist!==25?'alert':'')+
+    chip(e.env,e.env!=='quiet'?'alert':'')+
+    chip((e.dur/1000).toFixed(e.dur<1000?1:0)+' s'+(e.prescribed?'':' window'));
+  $('takeNo').textContent=nextTake(e.id);
+  $('stageIdle').classList.remove('hidden');
+  $('stageCount').classList.add('hidden');
+  $('stageReview').classList.add('hidden');
+}
+function nextTake(id){ return (takeCounter[id]||0)+1; }
+
+/* ---------- recording ---------- */
+$('btnRec').onclick=()=>startTake();
+$('btnSkip').onclick=()=>{
+  const e=SLOTS[idx].ex;
+  while(idx<SLOTS.length&&SLOTS[idx].ex.id===e.id) idx++;
+  log('Skipped '+e.id); render();
+};
+
+function startTake(){
+  const e=SLOTS[idx].ex;
+  $('stageIdle').classList.add('hidden');
+  $('stageCount').classList.remove('hidden');
+  suspendedDuringTake=false;
+  let n=3;
+  $('countNum').textContent=n; $('countNum').className='count';
+  $('countMsg').textContent='Get ready';
+  const tick=setInterval(()=>{
+    n--;
+    if(n>0){ $('countNum').textContent=n; }
+    else{
+      clearInterval(tick);
+      $('countNum').textContent='GO'; $('countNum').className='count go';
+      $('countMsg').textContent=e.prescribed?'Produce now':'Speak when ready';
+      beginCapture(e);
+    }
+  },1000);
+}
+
+function beginCapture(e){
+  chunks=[]; recActive=true; meterHold=-99;
+  node.port.postMessage({cmd:'record',on:true});
+  const total=LEAD_IN+e.dur+TAIL;
+  const t0=performance.now();
+  const iv=setInterval(()=>{
+    const el=performance.now()-t0;
+    if(el<LEAD_IN) $('countMsg').textContent='…';
+    else if(el<LEAD_IN+e.dur) $('countMsg').textContent='recording';
+    else $('countMsg').textContent='hold still';
+    if(el>=total){ clearInterval(iv); stopCapture(); }
+  },50);
+}
+
+function stopCapture(){
+  recActive=false;
+  pendingRec=true;
+  if(ctx.state!=='running') suspendedDuringTake=true;
+  node.port.postMessage({cmd:'record',on:false});   // worklet flushes tail, then 'done'
+}
+
+function finalize(){
+  pendingRec=false;
+  const e=SLOTS[idx].ex;
+  let n=0; chunks.forEach(c=>n+=c.length);
+  if(!n){ log('No audio captured for '+e.id); render(); return; }
+  const x=new Float32Array(n); let o=0;
+  chunks.forEach(c=>{x.set(c,o);o+=c.length;});
+
+  let peak=0,clip=0,sum=0;
+  for(let i=0;i<n;i++){const a=Math.abs(x[i]);if(a>peak)peak=a;
+    if(a>=0.995)clip++;sum+=x[i]*x[i];}
+  const rms=Math.sqrt(sum/n);
+  const db=v=>v>0?20*Math.log10(v):-99;
+
+  const take=nextTake(e.id);
+  takeCounter[e.id]=take;
+  const name=speaker()+'_'+session()+'_'+e.id+'-'+e.target+'_take'+
+    String(take).padStart(2,'0')+'.wav';
+
+  const bytes=wavBytes(x,ctx.sampleRate);
+  const rec={name:name,bytes:bytes,ex:e,take:take,n:n,
+    peak:db(peak),rms:db(rms),clip:clip,
+    dur:n/ctx.sampleRate,spoiled:false,reason:'',
+    susp:suspendedDuringTake,at:new Date().toISOString()};
+  records.push(rec);
+
+  const row=(k,v,c)=>'<div class="row"><span class="k">'+k+
+    '</span><span class="v '+(c||'')+'">'+v+'</span></div>';
+  const lvlClass=rec.peak>-3?'bad':(rec.peak>=-18&&rec.peak<=-6)?'ok':'warn';
+  $('revRows').innerHTML=
+    row('File',name)+
+    row('Duration',rec.dur.toFixed(2)+' s')+
+    row('Peak',rec.peak.toFixed(1)+' dBFS',lvlClass)+
+    row('RMS',rec.rms.toFixed(1)+' dBFS')+
+    row('Clipped',clip,clip?'bad':'ok')+
+    row('Context suspended',rec.susp?'YES — invalid':'no',rec.susp?'bad':'ok');
+  $('revAudio').src=URL.createObjectURL(new Blob([bytes],{type:'audio/wav'}));
+  $('stageCount').classList.add('hidden');
+  $('stageReview').classList.remove('hidden');
+  log('Captured '+name+'  '+rec.dur.toFixed(2)+'s  peak '+rec.peak.toFixed(1)+' dB'+
+      (rec.susp?'  [SUSPENDED]':''));
+  if(rec.susp) $('btnSpoil').textContent='Mark invalid & retake';
+  else $('btnSpoil').textContent='Flag spoiled & retake';
+}
+
+$('btnKeep').onclick=()=>{ advance(); };
+$('btnSpoil').onclick=()=>{
+  const r=records[records.length-1];
+  r.spoiled=true;
+  r.reason=r.susp?'context_suspended':'flagged_by_speaker';
+  log('Spoiled: '+r.name+' ('+r.reason+') — file kept, retake gets a new take number.');
+  render();   // stay on the same slot; take number has already advanced
+};
+
+function advance(){
+  const prevBlock=SLOTS[idx].ex.b;
+  idx++;
+  const newBlock=idx<SLOTS.length?SLOTS[idx].ex.b:null;
+  if(newBlock!==prevBlock){
+    log('=== Block '+prevBlock+' complete — download it now ===');
+    renderDl(true,prevBlock);
+  }
+  renderDl(); render();
+}
+
+/* ---------- jump ---------- */
+$('btnJumpOpen').onclick=()=>{buildJump();$('cardJump').classList.remove('hidden');};
+$('btnJumpCancel').onclick=()=>$('cardJump').classList.add('hidden');
+$('btnJumpGo').onclick=()=>{
+  const v=parseInt($('selJump').value,10);
+  if(!isNaN(v)){ idx=v; log('Jumped to slot '+(v+1)); }
+  $('cardJump').classList.add('hidden'); render();
+};
+function buildJump(){
+  let h='';
+  SLOTS.forEach((s,i)=>{
+    h+='<option value="'+i+'"'+(i===idx?' selected':'')+'>'+
+       (i+1)+'. '+s.ex.b+' · '+s.ex.id+' take '+s.take+' — '+s.ex.prompt+'</option>';
+  });
+  $('selJump').innerHTML=h;
+}
+
+/* ---------- downloads ---------- */
+function renderDl(flash,block){
+  const blocks=[...new Set(records.map(r=>r.ex.b))];
+  let h='';
+  blocks.forEach(b=>{
+    const n=records.filter(r=>r.ex.b===b).length;
+    h+='<div class="blockrow"><span>Block '+b+' — '+n+' file'+(n===1?'':'s')+
+       '</span><button class="'+(flash&&b===block?'good':'ghost')+
+       '" onclick="dlBlock(\''+b+'\')">ZIP</button></div>';
+  });
+  $('dlList').innerHTML=h||'<div class="note" style="margin:0">Nothing recorded yet.</div>';
+}
+function dlBlock(b){ download(records.filter(r=>r.ex.b===b),
+  speaker()+'_'+session()+'_block'+b+'.zip'); }
+$('btnAll').onclick=()=>download(records,speaker()+'_'+session()+'_full.zip');
+
+function download(list,zipName){
+  if(!list.length){ log('Nothing to download.'); return; }
+  const files=list.map(r=>({name:r.name,data:r.bytes}));
+  files.push({name:'manifest.csv',data:new TextEncoder().encode(manifest(list))});
+  const blob=zip(files);
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=zipName;
+  document.body.appendChild(a); a.click(); a.remove();
+  log('ZIP offered: '+zipName+'  ('+files.length+' files, '+
+      (blob.size/1048576).toFixed(2)+' MB)');
+}
+
+/* ---------- manifest ---------- */
+const COLS=['filename','set_version','speaker_id','session_id','recorded_at',
+ 'block','exercise_id','prompt_text','target_contour','produced_intent',
+ 'intended_duration_ms','production_prescribed','lead_in_ms','tail_ms','take',
+ 'attempt_type','distance_cm','environment','level_target',
+ 'spoiled','spoiled_reason','ctx_suspended',
+ 'sample_rate','channels','bit_depth','n_samples','duration_s',
+ 'peak_dbfs','rms_dbfs','clipped_samples',
+ 'device','user_agent','granted_constraints','recorder_version','notes'];
+
+function q(v){ v=(v===undefined||v===null)?'':String(v);
+  return '"'+v.replace(/"/g,'""')+'"'; }
+
+function manifest(list){
+  const gc=JSON.stringify({
+    echoCancellation:settings.echoCancellation,
+    noiseSuppression:settings.noiseSuppression,
+    autoGainControl:settings.autoGainControl});
+  let out='# Flight Engine evaluation set — '+SET_VERSION+'\n'+
+    '# Raw capture only. No smoothing, filtering, resampling, voicing gate or scoring applied.\n'+
+    '# Evaluation parameter for the offline harness (NOT applied here): YIN clarity gate = 0.7\n'+
+    '# intended_duration_ms is the prompted window. Where production_prescribed is false\n'+
+    '#   (A3, F1-F4) the window is headroom and natural duration is expected to vary.\n'+
+    '# Each take is padded by lead_in_ms before and tail_ms after the window.\n'+
+    '# Rows with spoiled=true or ctx_suspended=true must be excluded from analysis.\n'+
+    COLS.join(',')+'\n';
+  list.forEach(r=>{
+    const e=r.ex;
+    out+=[r.name,SET_VERSION,speaker(),session(),r.at,
+      e.b,e.id,e.prompt,e.target,e.produced,
+      e.dur,e.prescribed,LEAD_IN,TAIL,r.take,
+      e.type,e.dist,e.env,e.level,
+      r.spoiled,r.reason,r.susp,
+      ctx.sampleRate,1,16,r.n,r.dur.toFixed(4),
+      r.peak.toFixed(1),r.rms.toFixed(1),r.clip,
+      track.label||'',navigator.userAgent,gc,RECORDER_VERSION,''
+    ].map(q).join(',')+'\n';
+  });
+  return out;
+}
+
+/* ---------- WAV ---------- */
+function wavBytes(x,rate){
+  const b=new ArrayBuffer(44+x.length*2), v=new DataView(b);
+  const s=(o,t)=>{for(let i=0;i<t.length;i++)v.setUint8(o+i,t.charCodeAt(i));};
+  s(0,'RIFF'); v.setUint32(4,36+x.length*2,true); s(8,'WAVE');
+  s(12,'fmt '); v.setUint32(16,16,true); v.setUint16(20,1,true);
+  v.setUint16(22,1,true); v.setUint32(24,rate,true);
+  v.setUint32(28,rate*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true);
+  s(36,'data'); v.setUint32(40,x.length*2,true);
+  let o=44;
+  for(let i=0;i<x.length;i++){
+    let q=x[i]; q=q<-1?-1:q>1?1:q;
+    v.setInt16(o,q<0?q*0x8000:q*0x7FFF,true); o+=2;
+  }
+  return new Uint8Array(b);
+}
+
+/* ---------- ZIP (store, no compression, no dependency) ---------- */
+const CRCT=(()=>{const t=new Uint32Array(256);
+  for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0;}
+  return t;})();
+function crc32(u){let c=0xFFFFFFFF;
+  for(let i=0;i<u.length;i++)c=CRCT[(c^u[i])&0xFF]^(c>>>8);
+  return (c^0xFFFFFFFF)>>>0;}
+function zip(files){
+  const enc=new TextEncoder(); const parts=[],cent=[]; let off=0;
+  files.forEach(f=>{
+    const nm=enc.encode(f.name), crc=crc32(f.data), sz=f.data.length;
+    const lh=new Uint8Array(30+nm.length), lv=new DataView(lh.buffer);
+    lv.setUint32(0,0x04034b50,true); lv.setUint16(4,20,true);
+    lv.setUint32(14,crc,true); lv.setUint32(18,sz,true); lv.setUint32(22,sz,true);
+    lv.setUint16(26,nm.length,true); lh.set(nm,30);
+    parts.push(lh,f.data);
+    const ch=new Uint8Array(46+nm.length), cv=new DataView(ch.buffer);
+    cv.setUint32(0,0x02014b50,true); cv.setUint16(4,20,true); cv.setUint16(6,20,true);
+    cv.setUint32(16,crc,true); cv.setUint32(20,sz,true); cv.setUint32(24,sz,true);
+    cv.setUint16(28,nm.length,true); cv.setUint32(42,off,true); ch.set(nm,46);
+    cent.push(ch); off+=lh.length+sz;
+  });
+  let cs=0; cent.forEach(c=>cs+=c.length);
+  const eo=new Uint8Array(22), ev=new DataView(eo.buffer);
+  ev.setUint32(0,0x06054b50,true);
+  ev.setUint16(8,files.length,true); ev.setUint16(10,files.length,true);
+  ev.setUint32(12,cs,true); ev.setUint32(16,off,true);
+  return new Blob(parts.concat(cent,[eo]),{type:'application/zip'});
+}
+</script>
+</body>
+</html>
