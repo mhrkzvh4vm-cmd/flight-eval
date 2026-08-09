@@ -106,7 +106,7 @@
       <div class="lbl" id="pkLbl">&mdash;</div>
     </div>
 
-    <div class="mcap"><b>RMS</b><span>300 ms window &middot; guide &minus;34 to &minus;20</span></div>
+    <div class="mcap"><b>RMS</b><span>300 ms window &middot; guide &minus;37 to &minus;23</span></div>
     <div class="meter">
       <div class="fill" id="rmFill"></div>
       <div class="zone" id="rmZone"></div>
@@ -370,7 +370,7 @@ let pendingRec=null;
 /* --- Live meter state. Display only; never written to any file. ---
    Peak : 1.2 s hold, then 24 dB/s decay.   RMS : 300 ms sliding window. */
 const HOLD_MS=1200, DECAY_DB_PER_S=24, RMS_TAU_S=0.30;
-const PK_LO=-24, PK_HI=-8, RM_LO=-34, RM_HI=-20, PK_WARN=-3;
+const PK_LO=-24, PK_HI=-8, RM_LO=-37, RM_HI=-23, PK_WARN=-3;
 let pkHoldDb=-99, pkHoldAt=0, msState=0, msInit=false, lastLevelAt=0;
 function resetMeters(){ pkHoldDb=-99; pkHoldAt=0; msState=0; msInit=false; lastLevelAt=0; }
 
@@ -701,7 +701,7 @@ function manifest(list){
     '#   belonging to the harness and is deliberately NOT performed here.\n'+
     '# The live on-screen meters are display only and are never written to any file.\n'+
     '#   Their semantics: peak = 1.2 s hold then 24 dB/s decay; rms = 300 ms sliding\n'+
-    '#   window. Provisional guidance bands peak -24..-8 dBFS, rms -34..-20 dBFS,\n'+
+    '#   window. Provisional guidance bands peak -24..-8 dBFS, rms -37..-23 dBFS,\n'+
     '#   warning above -3 dBFS. Provisional only, NOT acceptance criteria — to be set\n'+
     '#   empirically from the A1 calibration takes.\n'+
     COLS.join(',')+'\n';
