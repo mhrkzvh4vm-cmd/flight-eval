@@ -404,6 +404,22 @@ let micFaultDuringTake=false;
 let needMicCheck=true;
 let lastGuard=null;
 
+/* --- CAPTURE HANDSHAKE WATCHDOG ---------------------------------------
+   stopCapture() posts {cmd:'record',on:false} and then waits for the
+   worklet to flush its tail and reply {type:'done'}. That reply is the ONLY
+   exit from the STOP phase. If the AudioContext is interrupted at that
+   moment (iOS audio-session interruption: a call, Siri, another app), the
+   worklet never processes the message and the UI waits forever.
+
+   This is not specific to the guards added in v2 — v1 had the same single
+   exit and simply never hit an interruption at that instant. The fix is a
+   timeout so the state machine always leaves the STOP phase.
+--------------------------------------------------------------------- */
+const DONE_TIMEOUT_MS=1200;
+let doneTimer=null;
+let takeToken=0;          // increments per take; stale 'done' replies ignored
+let timedOut=false;
+
 // Runs on the exact Float32Array that becomes the WAV. Pure, so it is
 // testable outside the browser.
 function guardVerdict(x){
@@ -455,9 +471,14 @@ $('btnStart').onclick=async()=>{
 
     ctx.onstatechange=()=>{
       log('AudioContext state -> '+ctx.state);
-      if(ctx.state!=='running'&&recActive){
-        suspendedDuringTake=true;
-        log('!! context left running during a take — this take will be marked invalid');
+      if(ctx.state!=='running'){
+        if(recActive){
+          suspendedDuringTake=true;
+          log('!! context left running during a take — this take will be marked invalid');
+        }
+        needMicCheck=true;
+        ctx.resume().then(()=>log('AudioContext resume() requested'))
+                    .catch(e=>log('resume failed: '+e.message));
       }
     };
     const src=$('workletSrc').textContent;
@@ -534,7 +555,12 @@ function onMsg(e){
     return;
   }
   if(m.type==='audio'){ if(recActive||pendingRec) chunks.push(new Float32Array(m.data)); return; }
-  if(m.type==='done'){ finalize(); return; }
+  if(m.type==='done'){
+    if(doneTimer){ clearTimeout(doneTimer); doneTimer=null; }
+    if(!pendingRec) return;              // watchdog already finalised this take
+    finalize();
+    return;
+  }
 }
 
 function paintBadge(m){
@@ -694,14 +720,52 @@ function stopCapture(){
   recActive=false;
   pendingRec=true;
   if(ctx.state!=='running') suspendedDuringTake=true;
-  node.port.postMessage({cmd:'record',on:false});   // worklet flushes tail, then 'done'
+  const tok=takeToken;
+  timedOut=false;
+  try{ node.port.postMessage({cmd:'record',on:false}); }
+  catch(err){ log('postMessage failed: '+err.message); }
+  if(doneTimer) clearTimeout(doneTimer);
+  doneTimer=setTimeout(()=>{
+    if(tok!==takeToken) return;          // already finalised normally
+    doneTimer=null; timedOut=true;
+    log('!! worklet did not reply within '+DONE_TIMEOUT_MS+' ms (ctx.state='+
+        (ctx?ctx.state:'?')+') — finalising from what arrived');
+    if(ctx && ctx.state!=='running') ctx.resume().catch(()=>{});
+    needMicCheck=true;
+    finalize();
+  },DONE_TIMEOUT_MS);
 }
 
 function finalize(){
+  if(!pendingRec) return;                // never finalise the same take twice
   pendingRec=false;
+  takeToken++;                           // any later 'done' is stale
+  if(doneTimer){ clearTimeout(doneTimer); doneTimer=null; }
   const e=SLOTS[idx].ex;
   let n=0; chunks.forEach(c=>n+=c.length);
-  if(!n){ log('No audio captured for '+e.id); render(); return; }
+  if(!n){
+    // Nothing arrived at all. Show the review screen with a forced retake so
+    // the session can never be stranded on the STOP display.
+    log('No audio captured for '+e.id+' — forcing a retake');
+    lastGuard={ok:false,reason:'no_audio_captured',peakDb:-999,zeroFrac:1};
+    needMicCheck=true;
+    $('revRows').innerHTML=''; $('revAudio').removeAttribute('src');
+    const gb0=$('guardBanner');
+    gb0.className='guard bad';
+    gb0.innerHTML='<b>Take rejected — no audio captured.</b><br>'+
+      'The microphone stream stopped responding during this take'+
+      (timedOut?' and did not reply in time':'')+'. Nothing usable was recorded. '+
+      'Run the microphone check and retake.';
+    gb0.classList.remove('hidden');
+    $('btnKeep').classList.add('hidden');
+    $('btnSpoil').classList.add('hidden');
+    $('btnForced').classList.remove('hidden');
+    $('btnForced').textContent='Retake \u2014 required';
+    $('stageCount').classList.add('hidden');
+    $('stageReview').classList.remove('hidden');
+    paintBadge();
+    return;
+  }
   const x=new Float32Array(n); let o=0;
   chunks.forEach(c=>{x.set(c,o);o+=c.length;});
 
@@ -716,13 +780,18 @@ function finalize(){
   const name=speaker()+'_'+session()+'_'+e.id+'-'+e.target+'_take'+
     String(take).padStart(2,'0')+'.wav';
 
+  // GUARD: run on the exact array that is about to become the WAV.
+  const g=guardVerdict(x);
+  const micFault = !micHealthy || micFaultDuringTake;
+  lastGuard=g;
+
   const bytes=wavBytes(x,ctx.sampleRate);
-  const rejected = !g.ok || micFault;
+  const rejected = !g.ok || micFault || timedOut;
   const rec={name:name,bytes:bytes,ex:e,take:take,n:n,
     peak:db(peak),rms:db(rms),clip:clip,
     dur:n/ctx.sampleRate,
     spoiled:rejected,
-    reason: !g.ok ? g.reason : (micFault ? 'mic_fault' : ''),
+    reason: !g.ok ? g.reason : (micFault ? 'mic_fault' : (timedOut ? 'capture_timeout' : '')),
     susp:suspendedDuringTake,at:new Date().toISOString()};
   records.push(rec);
 
@@ -749,9 +818,13 @@ function finalize(){
                       SILENCE_PEAK_DBFS+' dBFS minimum. Nothing usable was captured.',
           no_audio_captured:'No audio reached the recorder at all.'}[g.reason]
          || g.reason)
-      : 'The microphone stream reported a fault during this take ('+micReason+').';
+      : (micFault
+         ? 'The microphone stream reported a fault during this take ('+micReason+').'
+         : 'The recording did not complete in time — the audio system was '+
+           'interrupted at the end of this take, so the capture may be short.');
     gb.className='guard bad';
-    gb.innerHTML='<b>Take rejected — '+g.reason.replace(/_/g,' ')+'.</b><br>'+why+
+    const rlabel = (!g.ok ? g.reason : (micFault ? 'mic_fault' : 'capture_timeout'));
+    gb.innerHTML='<b>Take rejected — '+rlabel.replace(/_/g,' ')+'.</b><br>'+why+
       '<br>The file is kept in the archive marked spoiled. You must retake it.';
     gb.classList.remove('hidden');
     $('btnKeep').classList.add('hidden');
@@ -759,6 +832,7 @@ function finalize(){
     $('btnForced').classList.remove('hidden');
     $('btnForced').textContent='Retake \u2014 required';
     if(!micHealthy || g.reason==='dead_stream') needMicCheck=true;
+    if(timedOut) needMicCheck=true;
     log('REJECTED '+name+' ('+rec.reason+') peak '+g.peakDb.toFixed(1)+
         ' dBFS, zeros '+(100*g.zeroFrac).toFixed(1)+'%');
   } else {
