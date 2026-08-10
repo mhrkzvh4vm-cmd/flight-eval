@@ -71,6 +71,19 @@
   .winbar.ghosted{border-style:dashed}
   .winbar.ghosted i{background:rgba(107,168,255,.35)}
   .winnote{text-align:center;font-size:13px;color:var(--dim);min-height:18px}
+  .micbadge{position:sticky;top:0;z-index:5;text-align:center;font-size:13px;
+    font-weight:700;letter-spacing:0.14em;padding:8px;border-radius:8px;
+    margin:-4px 0 12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .micbadge.ok{background:rgba(62,201,138,.16);color:var(--ok);
+    border:1px solid var(--ok)}
+  .micbadge.bad{background:rgba(239,106,94,.16);color:var(--bad);
+    border:1px solid var(--bad)}
+  .guard{border-radius:8px;padding:12px;margin-bottom:12px;font-size:14.5px;
+    line-height:1.4}
+  .guard.bad{background:rgba(239,106,94,.14);border:1px solid var(--bad);
+    color:var(--bad)}
+  .guard.warn{background:rgba(232,179,74,.14);border:1px solid var(--warn);
+    color:var(--warn)}
   select,input{font:inherit;background:#0e1319;color:var(--paper);
     border:1px solid var(--line);border-radius:8px;padding:12px;width:100%}
   .note{font-size:13px;color:var(--dim);margin-top:10px}
@@ -128,11 +141,20 @@
 
   <!-- EXERCISE -->
   <div class="card hidden" id="cardEx">
+    <div class="micbadge bad" id="micBadge">NO INPUT</div>
     <h2><span id="exPos"></span></h2>
     <div class="bar"><i id="progAll"></i></div>
     <div class="prompt" id="exPrompt"></div>
     <div class="hint" id="exHint"></div>
     <div class="chips" id="exChips"></div>
+
+    <div id="stageMicCheck" class="hidden">
+      <div class="guard warn" id="micCheckMsg">Microphone check</div>
+      <div class="note">Speak or tap the microphone so the badge above reads
+      <b>MIC LIVE</b>, then continue. This check runs before each block so a
+      dead microphone costs one block, not a session.</div>
+      <button class="primary" id="btnMicOk" style="margin-top:12px" disabled>Continue</button>
+    </div>
 
     <div id="stageIdle">
       <button class="rec" id="btnRec">Record take <span id="takeNo"></span></button>
@@ -150,11 +172,13 @@
     </div>
 
     <div id="stageReview" class="hidden">
+      <div class="guard bad hidden" id="guardBanner"></div>
       <div id="revRows"></div>
       <audio id="revAudio" controls playsinline></audio>
       <div class="two" style="margin-bottom:10px">
         <button class="good" id="btnKeep">Keep</button>
         <button class="ghost" id="btnSpoil">Flag spoiled &amp; retake</button>
+        <button class="rec hidden" id="btnForced" style="margin:0">Retake &mdash; required</button>
       </div>
     </div>
   </div>
@@ -198,10 +222,14 @@ class Capture extends AudioWorkletProcessor {
     this.peakWin=0;
     this.msAcc=0;
     this.sincePeak=0;
+    // Measured ONLY from the samples written into the recording buffer, so the
+    // MIC LIVE indicator during a take is provably the same data as the WAV.
+    this.recPeak=0; this.recZeros=0; this.recN=0;
     this.port.onmessage=(e)=>{
       const m=e.data;
       if(m.cmd==='record'){
-        if(m.on){ this.pos=0; this.rec=true; }
+        if(m.on){ this.pos=0; this.rec=true;
+                  this.recPeak=0; this.recZeros=0; this.recN=0; }
         else {
           this.rec=false;
           // TAIL FIX: flush the partial chunk so the end of the take is never lost.
@@ -224,6 +252,9 @@ class Capture extends AudioWorkletProcessor {
       if(a>this.peakWin) this.peakWin=a;
       this.msAcc+=s*s;
       if(this.rec){
+        if(a>this.recPeak) this.recPeak=a;
+        if(s===0) this.recZeros++;
+        this.recN++;
         this.buf[this.pos++]=s;
         if(this.pos===this.CH){
           const c=this.buf.slice();
@@ -236,8 +267,11 @@ class Capture extends AudioWorkletProcessor {
     if(this.sincePeak>=2048){
       // Display-only measurement. Never touches the captured samples.
       this.port.postMessage({type:'level',peak:this.peakWin,
-                             ms:this.msAcc/this.sincePeak});
+                             ms:this.msAcc/this.sincePeak,
+                             recording:this.rec, recPeak:this.recPeak,
+                             recZeros:this.recZeros, recN:this.recN});
       this.sincePeak=0; this.peakWin=0; this.msAcc=0;
+      this.recPeak=0;   // per-report, so the indicator reflects recent samples
     }
     return true;
   }
@@ -352,6 +386,45 @@ let pendingRec=null;
 const HOLD_MS=1200, DECAY_DB_PER_S=24, RMS_TAU_S=0.30;
 const PK_LO=-24, PK_HI=-8, RM_LO=-37, RM_HI=-23, PK_WARN=-3;
 let pkHoldDb=-99, pkHoldAt=0, msState=0, msInit=false, lastLevelAt=0;
+
+/* --- GUARDS -------------------------------------------------------------
+   The correction session s202608102233 produced 34 of 36 clips containing
+   literally nothing but zeros, and the recorder accepted every one of them.
+   These guards exist so that cannot happen again. Nothing here touches the
+   captured samples; they only decide whether a take may be kept.
+------------------------------------------------------------------------- */
+const SILENCE_PEAK_DBFS=-60;   // below this, no usable production
+const ZERO_FRAC_LIMIT=0.99;    // this many exact zeros means a dead stream
+const ARM_STALE_MS=1500;       // input must have been alive this recently
+
+let lastNonZeroAt=0;           // last level report with any non-zero sample
+let lastRecNonZeroAt=0;        // ... from samples WRITTEN to the record buffer
+let micHealthy=true, micReason='';
+let micFaultDuringTake=false;
+let needMicCheck=true;
+let lastGuard=null;
+
+// Runs on the exact Float32Array that becomes the WAV. Pure, so it is
+// testable outside the browser.
+function guardVerdict(x){
+  let peak=0, zeros=0;
+  for(let i=0;i<x.length;i++){
+    const v=x[i], a=v<0?-v:v;
+    if(a>peak) peak=a;
+    if(v===0) zeros++;
+  }
+  const peakDb = peak>0 ? 20*Math.log10(peak) : -999;
+  const zeroFrac = x.length ? zeros/x.length : 1;
+  if(!x.length)                    return {ok:false,reason:'no_audio_captured',peakDb,zeroFrac};
+  if(zeroFrac>=ZERO_FRAC_LIMIT)    return {ok:false,reason:'dead_stream',peakDb,zeroFrac};
+  if(peakDb<SILENCE_PEAK_DBFS)     return {ok:false,reason:'silent_take',peakDb,zeroFrac};
+  return {ok:true,reason:'',peakDb,zeroFrac};
+}
+
+function micReady(now){
+  now = (now===undefined) ? performance.now() : now;
+  return micHealthy && (now-lastNonZeroAt) < ARM_STALE_MS;
+}
 function resetMeters(){ pkHoldDb=-99; pkHoldAt=0; msState=0; msInit=false; lastLevelAt=0; }
 
 $('inSession').value = new Date().toISOString().replace(/[-:T]/g,'').slice(0,12);
@@ -367,6 +440,19 @@ $('btnStart').onclick=async()=>{
     settings=track.getSettings?track.getSettings():{};
     ctx=new (window.AudioContext||window.webkitAudioContext)();
     await ctx.resume();
+    const fault=(why)=>{ micHealthy=false; micReason=why;
+      if(recActive) micFaultDuringTake=true;
+      needMicCheck=true; log('!! microphone fault: '+why); paintBadge(); };
+    track.onmute   =()=>fault('track muted');
+    track.onended  =()=>fault('track ended');
+    track.onunmute =()=>{ micHealthy=true; micReason='';
+      log('microphone unmuted'); paintBadge(); };
+    setInterval(()=>{
+      if(!track) return;
+      if(track.muted && micHealthy) fault('track.muted became true');
+      if(track.readyState!=='live' && micHealthy) fault('track.readyState='+track.readyState);
+    },500);
+
     ctx.onstatechange=()=>{
       log('AudioContext state -> '+ctx.state);
       if(ctx.state!=='running'&&recActive){
@@ -436,12 +522,34 @@ function onMsg(e){
     else { msState+=(1-Math.exp(-dt/RMS_TAU_S))*(ms-msState); }
     const rm=msState>0?10*Math.log10(msState):-99;
 
+    if(m.peak>0) lastNonZeroAt=now;
+    // During a take the badge is driven ONLY by samples written into the
+    // recording buffer, so it cannot show life the WAV does not have.
+    if(m.recording && m.recPeak>0) lastRecNonZeroAt=now;
+    paintBadge(m);
+
     paint('pkFill','pkLbl',pkHoldDb,PK_LO,PK_HI,PK_WARN);
     paint('rmFill','rmLbl',rm,RM_LO,RM_HI,null);
+    if(needMicCheck) $('btnMicOk').disabled=!micReady(now);
     return;
   }
   if(m.type==='audio'){ if(recActive||pendingRec) chunks.push(new Float32Array(m.data)); return; }
   if(m.type==='done'){ finalize(); return; }
+}
+
+function paintBadge(m){
+  const b=$('micBadge'); if(!b) return;
+  const now=performance.now();
+  let live, txt;
+  if(recActive){
+    live = micHealthy && (now-lastRecNonZeroAt)<400;
+    txt = live ? 'MIC LIVE \u00b7 WRITING' : 'NO AUDIO BEING RECORDED';
+  } else {
+    live = micReady(now);
+    txt = live ? 'MIC LIVE' : (micHealthy ? 'NO INPUT' : 'MIC FAULT: '+micReason);
+  }
+  b.textContent=txt;
+  b.className='micbadge '+(live?'ok':'bad');
 }
 
 function paint(fillId,lblId,db,lo,hi,warnAbove){
@@ -481,14 +589,44 @@ function render(){
     chip(e.env,e.env!=='quiet'?'alert':'')+
     chip((e.dur/1000).toFixed(e.dur<1000?1:0)+' s'+(e.prescribed?'':' window'));
   $('takeNo').textContent=nextTake(e.id);
-  $('stageIdle').classList.remove('hidden');
+  const gate=needMicCheck;
+  $('stageMicCheck').classList.toggle('hidden',!gate);
+  $('stageIdle').classList.toggle('hidden',gate);
   $('stageCount').classList.add('hidden');
   $('stageReview').classList.add('hidden');
+  if(gate) $('micCheckMsg').textContent=
+    'Microphone check before Block '+SLOTS[idx].ex.b;
+  paintBadge();
 }
 function nextTake(id){ return (takeCounter[id]||0)+1; }
 
 /* ---------- recording ---------- */
-$('btnRec').onclick=()=>startTake();
+$('btnRec').onclick=()=>{
+  if(!micReady()){
+    log('BLOCKED: arm check failed — '+(micHealthy
+        ? 'no non-zero input in the last '+ARM_STALE_MS+' ms'
+        : 'mic fault: '+micReason));
+    $('guardBanner').className='guard bad';
+    $('guardBanner').innerHTML='<b>Cannot start.</b> The microphone is not '+
+      'delivering audio right now. Speak, or reload the page and grant the '+
+      'microphone again. Nothing was recorded.';
+    $('stageReview').classList.remove('hidden');
+    $('revRows').innerHTML=''; $('revAudio').removeAttribute('src');
+    $('btnKeep').classList.add('hidden'); $('btnSpoil').classList.add('hidden');
+    $('btnForced').classList.remove('hidden');
+    $('btnForced').textContent='Back';
+    $('stageIdle').classList.add('hidden');
+    return;
+  }
+  startTake();
+};
+$('btnMicOk').onclick=()=>{
+  if(!micReady()) return;
+  needMicCheck=false;
+  log('microphone check passed for Block '+SLOTS[idx].ex.b);
+  render();
+};
+
 $('btnSkip').onclick=()=>{
   const e=SLOTS[idx].ex;
   while(idx<SLOTS.length&&SLOTS[idx].ex.id===e.id) idx++;
@@ -499,7 +637,7 @@ function startTake(){
   const e=SLOTS[idx].ex;
   $('stageIdle').classList.add('hidden');
   $('stageCount').classList.remove('hidden');
-  suspendedDuringTake=false;
+  suspendedDuringTake=false; micFaultDuringTake=false;
   $('winFill').style.width='0%';
   $('winNote').innerHTML=e.prescribed
     ? 'Produce for the whole bar. Silence before GO and after STOP.'
@@ -579,9 +717,12 @@ function finalize(){
     String(take).padStart(2,'0')+'.wav';
 
   const bytes=wavBytes(x,ctx.sampleRate);
+  const rejected = !g.ok || micFault;
   const rec={name:name,bytes:bytes,ex:e,take:take,n:n,
     peak:db(peak),rms:db(rms),clip:clip,
-    dur:n/ctx.sampleRate,spoiled:false,reason:'',
+    dur:n/ctx.sampleRate,
+    spoiled:rejected,
+    reason: !g.ok ? g.reason : (micFault ? 'mic_fault' : ''),
     susp:suspendedDuringTake,at:new Date().toISOString()};
   records.push(rec);
 
@@ -598,13 +739,42 @@ function finalize(){
   $('revAudio').src=URL.createObjectURL(new Blob([bytes],{type:'audio/wav'}));
   $('stageCount').classList.add('hidden');
   $('stageReview').classList.remove('hidden');
+
+  const gb=$('guardBanner');
+  if(rejected){
+    const why = !g.ok
+      ? ({dead_stream:'The microphone delivered no signal at all — '+
+                      (100*g.zeroFrac).toFixed(1)+'% of samples are exactly zero.',
+          silent_take:'Peak level was '+g.peakDb.toFixed(1)+' dBFS, below the '+
+                      SILENCE_PEAK_DBFS+' dBFS minimum. Nothing usable was captured.',
+          no_audio_captured:'No audio reached the recorder at all.'}[g.reason]
+         || g.reason)
+      : 'The microphone stream reported a fault during this take ('+micReason+').';
+    gb.className='guard bad';
+    gb.innerHTML='<b>Take rejected — '+g.reason.replace(/_/g,' ')+'.</b><br>'+why+
+      '<br>The file is kept in the archive marked spoiled. You must retake it.';
+    gb.classList.remove('hidden');
+    $('btnKeep').classList.add('hidden');
+    $('btnSpoil').classList.add('hidden');
+    $('btnForced').classList.remove('hidden');
+    $('btnForced').textContent='Retake \u2014 required';
+    if(!micHealthy || g.reason==='dead_stream') needMicCheck=true;
+    log('REJECTED '+name+' ('+rec.reason+') peak '+g.peakDb.toFixed(1)+
+        ' dBFS, zeros '+(100*g.zeroFrac).toFixed(1)+'%');
+  } else {
+    gb.classList.add('hidden');
+    $('btnKeep').classList.remove('hidden');
+    $('btnSpoil').classList.remove('hidden');
+    $('btnForced').classList.add('hidden');
+  }
   log('Captured '+name+'  '+rec.dur.toFixed(2)+'s  peak '+rec.peak.toFixed(1)+' dB'+
       (rec.susp?'  [SUSPENDED]':''));
   if(rec.susp) $('btnSpoil').textContent='Mark invalid & retake';
   else $('btnSpoil').textContent='Flag spoiled & retake';
 }
 
-$('btnKeep').onclick=()=>{ advance(); };
+$('btnKeep').onclick=()=>{ if(lastGuard && !lastGuard.ok) return; advance(); };
+$('btnForced').onclick=()=>{ render(); };
 $('btnSpoil').onclick=()=>{
   const r=records[records.length-1];
   r.spoiled=true;
@@ -620,6 +790,7 @@ function advance(){
   if(newBlock!==prevBlock){
     log('=== Block '+prevBlock+' complete — download it now ===');
     renderDl(true,prevBlock);
+    needMicCheck=true;          // re-verify the mic before the next block
   }
   renderDl(); render();
 }
