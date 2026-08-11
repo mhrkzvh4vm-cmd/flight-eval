@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Flight Academy — Step 1A</title>
+<style>
+  :root{--ink:#12161c;--panel:#1b222c;--line:#2c3644;--paper:#f2f4f7;--dim:#8c99aa;
+        --ok:#3ec98a;--warn:#e8b34a;--bad:#ef6a5e;--signal:#6ba8ff}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--ink);color:var(--paper);
+    font-family:ui-sans-serif,-apple-system,"Helvetica Neue",sans-serif;
+    font-size:17px;line-height:1.45;padding-bottom:env(safe-area-inset-bottom)}
+  .wrap{max-width:760px;margin:0 auto;padding:18px 18px 60px}
+  h1{font-size:19px;margin:0 0 2px}
+  .sub{color:var(--dim);font-size:13.5px;margin:0 0 16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:16px;margin-bottom:14px}
+  .card h2{font-size:11.5px;text-transform:uppercase;letter-spacing:.09em;
+    color:var(--dim);margin:0 0 12px;font-weight:600}
+  button{font:inherit;font-weight:600;border:0;border-radius:10px;padding:16px 20px;
+    width:100%;margin-bottom:10px;color:#0d1116;background:var(--paper);cursor:pointer}
+  button:disabled{opacity:.3}
+  button.primary{background:var(--signal);color:#08101d}
+  button.ghost{background:transparent;color:var(--paper);border:1px solid var(--line)}
+  .micbadge{text-align:center;font-size:13px;font-weight:700;letter-spacing:.14em;
+    padding:8px;border-radius:8px;margin:0 0 12px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .micbadge.ok{background:rgba(62,201,138,.16);color:var(--ok);border:1px solid var(--ok)}
+  .micbadge.bad{background:rgba(239,106,94,.16);color:var(--bad);border:1px solid var(--bad)}
+  canvas{width:100%;height:300px;display:block;background:#0e1319;
+    border:1px solid var(--line);border-radius:10px}
+  .state{font-size:34px;font-weight:700;text-align:center;margin:14px 0 2px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:-.02em}
+  .state.GOOD{color:var(--ok)} .state.BORDERLINE{color:var(--warn)}
+  .state.OFF_COURSE{color:var(--bad)} .state.IDLE{color:var(--dim)}
+  .phase{text-align:center;font-size:14px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--dim);min-height:20px}
+  .big{font-size:70px;text-align:center;font-weight:700;line-height:1.05;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .row{display:flex;justify-content:space-between;gap:10px;padding:5px 0;
+    border-bottom:1px solid var(--line);font-size:14px}
+  .row:last-child{border-bottom:0}
+  .row .k{color:var(--dim)}
+  .row .v{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;text-align:right}
+  .ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}
+  label.tog{display:flex;align-items:center;gap:10px;color:var(--dim);font-size:15px}
+  label.tog input{width:22px;height:22px}
+  pre{background:#0e1319;border:1px solid var(--line);border-radius:8px;padding:12px;
+    overflow-x:auto;font-size:12px;margin:0;white-space:pre-wrap;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#c6d2e0}
+  .note{font-size:13px;color:var(--dim);margin-top:10px}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Flight Academy — Step 1A</h1>
+  <p class="sub">One paced rising course &middot; live voice &middot; real-time deviation feedback</p>
+
+  <div class="card" id="cardSetup">
+    <h2>Setup</h2>
+    <button id="btnStart" class="primary">Start microphone</button>
+    <div id="setupRows"></div>
+    <div class="note" id="setupNote"></div>
+  </div>
+
+  <div class="card hidden" id="cardMain">
+    <div class="micbadge bad" id="micBadge">NO INPUT</div>
+    <canvas id="cv" width="1400" height="600"></canvas>
+    <div class="state IDLE" id="stateBig">&mdash;</div>
+    <div class="phase" id="phaseMsg">ready</div>
+    <div class="big hidden" id="countNum"></div>
+    <div style="margin-top:14px">
+      <button id="btnGo" class="primary">Calibrate &amp; fly</button>
+      <button id="btnAgain" class="ghost hidden">Fly again</button>
+      <button id="btnAbort" class="ghost hidden">Abort attempt</button>
+    </div>
+    <label class="tog" style="margin-top:6px">
+      <input type="checkbox" id="chkDev"> Dev overlay
+    </label>
+  </div>
+
+  <div class="card hidden" id="cardResult">
+    <h2>Attempt result</h2>
+    <div id="resRows"></div>
+    <div class="note">Live path only. This is debug data, not the Step 1 scoring pipeline.</div>
+  </div>
+
+  <div class="card hidden" id="cardDev">
+    <h2>Dev overlay</h2>
+    <div id="devRows"></div>
+    <button class="ghost" id="btnDump" style="margin-top:12px">Download session JSON</button>
+  </div>
+
+  <div class="card">
+    <h2>Log</h2>
+    <pre id="log">Not started.</pre>
+  </div>
+</div>
+
+<script id="workletSrc" type="text/plain">
+/* Step 0 tracker, unchanged: decimate to ~16 kHz, 32 ms window, 10 ms hop,
+   YIN with threshold 0.15, parabolic interpolation, reject above 0.5.
+   Frame energy over the same 32 ms window. No smoothing, no octave handling. */
+class Engine extends AudioWorkletProcessor {
+  constructor(){
+    super();
+    this.dec = Math.max(1, Math.round(sampleRate/16000));
+    this.srd = sampleRate/this.dec;
+    this.W = Math.round(this.srd*0.032);
+    this.H = Math.round(this.srd*0.010);
+    this.ring = new Float32Array(4096);
+    this.pos = 0; this.filled = 0; this.sinceHop = 0;
+    this.acc = 0; this.accN = 0;
+    this.peakWin = 0; this.sincePeak = 0; this.recPeakSeen = 0;
+    this.lastFrame = -1; this.gaps = 0;
+    this.buf = new Float32Array(this.W);
+  }
+  yin(b,n,sr){
+    const tauMax = Math.min(Math.floor(sr/70), n-1);
+    const tauMin = Math.floor(sr/500);
+    const d = new Float32Array(tauMax+1);
+    for(let tau=1;tau<=tauMax;tau++){
+      let s=0; const lim=n-tau;
+      for(let i=0;i<lim;i++){const x=b[i]-b[i+tau]; s+=x*x;}
+      d[tau]=s;
+    }
+    const cm=new Float32Array(tauMax+1); let run=0; cm[0]=1;
+    for(let tau=1;tau<=tauMax;tau++){run+=d[tau]; cm[tau]= run>0 ? d[tau]*tau/run : 1;}
+    let best=-1,val=1;
+    for(let tau=tauMin;tau<=tauMax;tau++){
+      if(cm[tau]<0.15){ while(tau+1<=tauMax && cm[tau+1]<cm[tau]) tau++;
+        best=tau; val=cm[tau]; break; }
+      if(cm[tau]<val){val=cm[tau]; best=tau;}
+    }
+    if(best<tauMin||val>0.5) return [0,0];
+    let t=best;
+    if(best>1&&best<tauMax){const a=cm[best-1],b2=cm[best],c=cm[best+1];
+      const den=2*(2*b2-a-c); if(den!==0) t=best+(c-a)/den;}
+    return [sr/t, 1-val];
+  }
+  process(inputs){
+    const inp=inputs[0]; if(!inp||!inp[0]) return true;
+    const ch=inp[0], N=ch.length;
+    if(typeof currentFrame==='number'){
+      if(this.lastFrame>=0 && currentFrame-this.lastFrame!==N) this.gaps++;
+      this.lastFrame=currentFrame;
+    }
+    for(let i=0;i<N;i++){
+      const s=ch[i], a=s<0?-s:s;
+      if(a>this.peakWin) this.peakWin=a;
+      this.acc+=s;
+      if(++this.accN===this.dec){
+        this.ring[this.pos]=this.acc/this.dec;
+        this.pos=(this.pos+1)%this.ring.length;
+        if(this.filled<this.ring.length) this.filled++;
+        this.acc=0; this.accN=0;
+        if(++this.sinceHop>=this.H && this.filled>=this.W){
+          this.sinceHop=0;
+          let p=(this.pos-this.W+this.ring.length)%this.ring.length;
+          let sum=0;
+          for(let k=0;k<this.W;k++){const v=this.ring[p]; this.buf[k]=v; sum+=v*v; p=(p+1)%this.ring.length;}
+          const rms=Math.sqrt(sum/this.W);
+          const r=this.yin(this.buf,this.W,this.srd);
+          // acousticTime: centre of the analysis window, on the context clock
+          this.port.postMessage({type:'frame', f0:r[0], clarity:r[1],
+            rmsDb: rms>0 ? 20*Math.log10(rms) : -120,
+            acousticTime: currentTime - 0.016, gaps:this.gaps});
+        }
+      }
+    }
+    this.sincePeak+=N;
+    if(this.sincePeak>=2048){
+      this.sincePeak=0;
+      this.port.postMessage({type:'level', peak:this.peakWin});
+      this.peakWin=0;
+    }
+    return true;
+  }
+}
+registerProcessor('engine', Engine);
+</script>
+
+<script>
+/* ==========================================================================
+   FLIGHT ACADEMY — STEP 1A
+   Smallest proof of the core interaction: one paced rising course, live voice,
+   real-time deviation feedback.
+
+   ARCHITECTURE (the separation locked in at the start of the project):
+     acoustic engine  -> EngineFrame  (f0, clarity, rms, voiced, semitones)
+     comparison layer -> CourseFrame  (target, deviation, band, reason)
+     visual layer     -> consumes CourseFrame ONLY
+
+   The visual layer never sees f0. Raw pitch does not drive the display.
+   EngineFrame is visible only behind the dev toggle.
+
+   The Step 0 tracker and its gates are used UNCHANGED: 32 ms window, 10 ms
+   hop, clarity 0.70, energy above the measured room floor + 6 dB.
+   ========================================================================== */
+const VERSION='flight1a-v1';
+
+/* ---- course: hold, rise, hold. Semitones relative to the calibrated baseline ---- */
+const COURSE=[{t:0.0,st:-3},{t:0.5,st:-3},{t:2.5,st:+3},{t:3.0,st:+3}];
+const COURSE_MS=3000;
+function targetAt(ms){
+  const t=ms/1000;
+  if(t<=COURSE[0].t) return COURSE[0].st;
+  for(let i=1;i<COURSE.length;i++){
+    if(t<=COURSE[i].t){
+      const a=COURSE[i-1], b=COURSE[i];
+      return a.st+(b.st-a.st)*(t-a.t)/(b.t-a.t);
+    }
+  }
+  return COURSE[COURSE.length-1].st;
+}
+const START_ST=COURSE[0].st;
+
+/* ---- corridor and state machine ---- */
+const GOOD_ENTER=1.5, GOOD_EXIT=1.8, OFF_ENTER=3.3, OFF_EXIT=3.0;
+const DWELL_IMPROVE_MS=200, DWELL_WORSEN_MS=120;
+const MEDIAN_N=5;
+
+/* ---- gates, unchanged from Step 0 ---- */
+const CLARITY_GATE=0.70, ENERGY_MARGIN_DB=6;
+
+/* ---- phases ---- */
+const CAL_ROOM_MS=1000, CAL_VOICE_MS=3000;
+const ACQUIRE_HOLD_MS=300, ACQUIRE_TIMEOUT_MS=25000;
+const COUNTDOWN_BEAT_MS=600, COUNTDOWN_BEATS=3;
+
+const $=id=>document.getElementById(id);
+let lines=[]; function log(s){lines.push(s); if(lines.length>60) lines.shift();
+  $('log').textContent=lines.join('\n');}
+
+let ctx,node,stream,track;
+let micHealthy=true, micReason='', lastNonZeroAt=0;
+let phase='IDLE';
+let roomFloorDb=null, baselineHz=null;
+let calBuf=[], phaseStart=0, phaseTimer=null;
+let devSeq=[], attempts=[], attemptNo=0;
+let cur=null;                 // latest CourseFrame
+let lastEngine=null;          // latest EngineFrame (dev only)
+let devTrail=[];
+
+/* ==========================  ACOUSTIC ENGINE  ========================== */
+function makeEngineFrame(m){
+  const voiced = m.f0>0 && m.clarity>CLARITY_GATE &&
+                 (roomFloorDb===null || m.rmsDb > roomFloorDb+ENERGY_MARGIN_DB);
+  return {
+    tMs: null,
+    f0Hz: m.f0>0 ? m.f0 : null,
+    semitones: (voiced && baselineHz) ? 12*Math.log2(m.f0/baselineHz) : null,
+    clarity: m.clarity,
+    rmsDb: m.rmsDb,
+    voiced: voiced,
+    acousticTime: m.acousticTime
+  };
+}
+
+/* =======================  COMPARISON LAYER  ======================== */
+const med=[];
+function pushMedian(v){
+  med.push(v); if(med.length>MEDIAN_N) med.shift();
+  const s=med.slice().sort((a,b)=>a-b);
+  return s[Math.floor(s.length/2)];
+}
+function resetMedian(){ med.length=0; }
+
+let band='OFF_COURSE', bandSince=0, pendingBand=null, pendingSince=0, bandSeeded=false;
+let rawCrossAt={off:null,good:null};
+function resetBand(now){ band='OFF_COURSE'; bandSince=now; pendingBand=null;
+  bandSeeded=false; rawCrossAt={off:null,good:null}; }
+
+function bandFor(dev, current){
+  if(dev===null) return 'OFF_COURSE';
+  const a=Math.abs(dev);
+  if(current==='GOOD')       return a<=GOOD_EXIT ? 'GOOD' : (a>OFF_ENTER?'OFF_COURSE':'BORDERLINE');
+  if(current==='OFF_COURSE') return a<=GOOD_ENTER ? 'GOOD' : (a<=OFF_EXIT?'BORDERLINE':'OFF_COURSE');
+  return a<=GOOD_ENTER ? 'GOOD' : (a>OFF_ENTER?'OFF_COURSE':'BORDERLINE');
+}
+const RANK={GOOD:0,BORDERLINE:1,OFF_COURSE:2};
+
+function stepStateMachine(dev, nowMs){
+  const want=bandFor(dev,band);
+  if(want===band){ pendingBand=null; return false; }
+  if(pendingBand!==want){ pendingBand=want; pendingSince=nowMs; }
+  const dwell = RANK[want]>RANK[band] ? DWELL_WORSEN_MS : DWELL_IMPROVE_MS;
+  if(nowMs-pendingSince>=dwell){
+    band=want; bandSince=nowMs; pendingBand=null; return true;
+  }
+  return false;
+}
+
+function makeCourseFrame(ef, courseMs, nowMs){
+  const target=targetAt(courseMs);
+  let devRaw=null, dev=null;
+  if(ef.voiced && ef.semitones!==null){
+    devRaw=ef.semitones-target;
+    dev=pushMedian(devRaw);
+  } else {
+    resetMedian();
+  }
+  // raw crossings, for honest detection-latency measurement
+  if(devRaw!==null){
+    if(Math.abs(devRaw)>OFF_ENTER && rawCrossAt.off===null) rawCrossAt.off=nowMs;
+    if(Math.abs(devRaw)<=GOOD_ENTER && rawCrossAt.good===null) rawCrossAt.good=nowMs;
+    if(Math.abs(devRaw)<=OFF_ENTER) rawCrossAt.off=null;
+    if(Math.abs(devRaw)>GOOD_ENTER) rawCrossAt.good=null;
+  }
+  // Seed the band from the first scored frame with no dwell, so the course does
+  // not open with a phantom OFF_COURSE -> GOOD transition. Acquisition has just
+  // held the start altitude, so there is a real state to start from.
+  let changed=false;
+  if(!bandSeeded && dev!==null){
+    band=bandFor(dev,'NONE'); bandSince=nowMs; bandSeeded=true; pendingBand=null;
+  } else {
+    changed=stepStateMachine(dev, nowMs);
+  }
+  let reason='on_course';
+  if(!ef.voiced) reason='no_voice';
+  else if(band==='OFF_COURSE') reason='off_pitch';
+  else if(band==='BORDERLINE') reason='drifting';
+  return {tMs:courseMs, progress:Math.max(0,Math.min(1,courseMs/COURSE_MS)),
+          targetSt:target, deviationSt:dev, deviationRawSt:devRaw,
+          band:band, reason:reason, sinceStateMs:nowMs-bandSince, changed:changed};
+}
+
+/* ==========================  PHASES  ========================== */
+function setPhase(p,msg){
+  phase=p; phaseStart=performance.now();
+  $('phaseMsg').textContent=msg||p;
+  log('phase -> '+p);
+}
+function clearPhaseTimer(){ if(phaseTimer){clearTimeout(phaseTimer); phaseTimer=null;} }
+
+let att=null;   // current attempt record
+
+function beginAttempt(){
+  clearPhaseTimer();
+  attemptNo++;
+  att={n:attemptNo, started:new Date().toISOString(), transitions:[],
+       latencies:[], frames:0, voicedFrames:0, goodMs:0, gapsAtStart:null,
+       detectOff:[], recoverGood:[]};
+  calBuf=[]; roomFloorDb=null; baselineHz=null;
+  devTrail=[];
+  $('cardResult').classList.add('hidden');
+  $('btnGo').classList.add('hidden'); $('btnAgain').classList.add('hidden');
+  $('btnAbort').classList.remove('hidden');
+  setPhase('CAL_ROOM','stay silent — measuring the room');
+  phaseTimer=setTimeout(()=>{
+    const v=calBuf.filter(x=>isFinite(x));
+    roomFloorDb = v.length ? median(v) : -60;
+    log('room floor '+roomFloorDb.toFixed(1)+' dBFS from '+v.length+' frames');
+    calBuf=[];
+    setPhase('CAL_VOICE','say a comfortable steady "ah"');
+    phaseTimer=setTimeout(()=>{
+      const f=calBuf.filter(x=>x>0);
+      if(f.length<30){ abortAttempt('calibration failed — no steady voice detected'); return; }
+      baselineHz=median(f);
+      log('baseline F0 '+baselineHz.toFixed(1)+' Hz from '+f.length+' voiced frames');
+      calBuf=[];
+      resetMedian(); resetBand(performance.now());
+      setPhase('ACQUIRE','find and hold the starting altitude');
+      phaseTimer=setTimeout(()=>abortAttempt('could not acquire the starting altitude'),
+                            ACQUIRE_TIMEOUT_MS);
+    },CAL_VOICE_MS);
+  },CAL_ROOM_MS);
+}
+function median(a){const s=a.slice().sort((x,y)=>x-y);return s[Math.floor(s.length/2)];}
+
+let acquireGoodSince=null;
+function startCountdown(){
+  clearPhaseTimer(); acquireGoodSince=null;
+  setPhase('COUNTDOWN','hold your note');
+  let n=COUNTDOWN_BEATS;
+  $('countNum').classList.remove('hidden'); $('countNum').textContent=n;
+  const tick=()=>{
+    n--;
+    if(n>0){ $('countNum').textContent=n; phaseTimer=setTimeout(tick,COUNTDOWN_BEAT_MS); }
+    else{
+      $('countNum').classList.add('hidden');
+      resetMedian(); resetBand(performance.now());
+      att.gapsAtStart = lastEngine ? lastEngine._gaps : 0;
+      setPhase('COURSE','fly the course');
+      phaseTimer=setTimeout(endAttempt, COURSE_MS+120);
+    }
+  };
+  phaseTimer=setTimeout(tick,COUNTDOWN_BEAT_MS);
+}
+
+function abortAttempt(why){
+  clearPhaseTimer();
+  log('ABORT: '+why);
+  setPhase('IDLE',why);
+  $('btnAbort').classList.add('hidden');
+  $('btnGo').classList.remove('hidden');
+  $('stateBig').textContent='—'; $('stateBig').className='state IDLE';
+  att=null;
+}
+
+function endAttempt(){
+  clearPhaseTimer();
+  setPhase('DONE','attempt complete');
+  $('btnAbort').classList.add('hidden');
+  $('btnAgain').classList.remove('hidden');
+  const scoredMs = Math.max(1, att.frames*10);
+  const goodPct = Math.min(100, 100*att.goodMs/scoredMs);
+  const lat = att.latencies.length ? att.latencies.slice().sort((a,b)=>a-b) : [];
+  const p=(q)=>lat.length? lat[Math.min(lat.length-1,Math.floor(lat.length*q))] : null;
+  att.result={
+    stateChanges: att.transitions.length,
+    timeInGoodPct: +goodPct.toFixed(1),
+    voicedPct: att.frames? +(100*att.voicedFrames/att.frames).toFixed(1) : 0,
+    latencyMedianMs: p(0.5)!==null? +p(0.5).toFixed(1):null,
+    latencyP95Ms: p(0.95)!==null? +p(0.95).toFixed(1):null,
+    detectOffMs: att.detectOff.map(v=>+v.toFixed(0)),
+    recoverGoodMs: att.recoverGood.map(v=>+v.toFixed(0)),
+    baselineHz:+baselineHz.toFixed(1), roomFloorDb:+roomFloorDb.toFixed(1)
+  };
+  attempts.push(att);
+  const row=(k,v,c)=>'<div class="row"><span class="k">'+k+'</span><span class="v '+(c||'')+'">'+v+'</span></div>';
+  const r=att.result;
+  $('resRows').innerHTML=
+    row('Attempt', att.n)+
+    row('Time in GOOD (scored course)', r.timeInGoodPct+'%', r.timeInGoodPct>=80?'ok':r.timeInGoodPct>=60?'warn':'bad')+
+    row('State changes', r.stateChanges, r.stateChanges<=2?'ok':r.stateChanges<=5?'warn':'bad')+
+    row('Voiced frames', r.voicedPct+'%')+
+    row('Sound&rarr;state latency, median', (r.latencyMedianMs??'—')+' ms',
+        r.latencyMedianMs!=null&&r.latencyMedianMs<=100?'ok':r.latencyMedianMs!=null&&r.latencyMedianMs<=180?'warn':'bad')+
+    row('Sound&rarr;state latency, p95', (r.latencyP95Ms??'—')+' ms')+
+    row('Departure detected in', r.detectOffMs.length? r.detectOffMs.join(', ')+' ms':'—')+
+    row('Recovery to GOOD in', r.recoverGoodMs.length? r.recoverGoodMs.join(', ')+' ms':'—')+
+    row('Baseline / room floor', r.baselineHz+' Hz / '+r.roomFloorDb+' dBFS');
+  $('cardResult').classList.remove('hidden');
+  log('attempt '+att.n+': GOOD '+r.timeInGoodPct+'%, '+r.stateChanges+
+      ' changes, latency med '+r.latencyMedianMs+' ms');
+  att=null;
+  $('stateBig').textContent='—'; $('stateBig').className='state IDLE';
+}
+
+/* ==========================  FRAME HANDLER  ========================== */
+function onFrame(m){
+  const nowMs=performance.now();
+  const ef=makeEngineFrame(m);
+  ef._gaps=m.gaps;
+  lastEngine=ef;
+  if(m.gaps && (!lastEngine._loggedGaps)){ lastEngine._loggedGaps=true; log('!! worklet gaps: '+m.gaps); }
+
+  if(phase==='CAL_ROOM'){ calBuf.push(m.rmsDb); return; }
+  if(phase==='CAL_VOICE'){
+    if(m.f0>0 && m.clarity>CLARITY_GATE) calBuf.push(m.f0);
+    return;
+  }
+  if(phase!=='ACQUIRE' && phase!=='COUNTDOWN' && phase!=='COURSE') return;
+
+  const courseMs = phase==='COURSE' ? (nowMs-phaseStart) : 0;
+  // Score only frames inside the course window. The phase timer runs slightly
+  // long so the last frame is not lost; those extra frames must not be counted.
+  const scored = phase==='COURSE' && courseMs<=COURSE_MS;
+  const cf=makeCourseFrame(ef, scored?courseMs:0, nowMs);
+  cur=cf;
+
+  if(scored){
+    att.frames++;
+    if(ef.voiced) att.voicedFrames++;
+    if(cf.band==='GOOD') att.goodMs+=10;
+    // Sound -> state latency, measured on EVERY scored frame, not only on
+    // transitions, so a clean attempt still yields a measurement. Both times
+    // are on the AudioContext clock: window centre to decision.
+    att.latencies.push((ctx.currentTime - ef.acousticTime)*1000);
+    devTrail.push({t:courseMs, st:ef.semitones, band:cf.band});
+    if(cf.changed){
+      // sound -> state latency on the SAME clock: acoustic window centre to decision
+      const latMs=(ctx.currentTime - ef.acousticTime)*1000;
+      att.transitions.push({tMs:+courseMs.toFixed(0), band:cf.band, latMs:+latMs.toFixed(1)});
+      if(cf.band==='OFF_COURSE' && rawCrossAt.off!==null)
+        att.detectOff.push(nowMs-rawCrossAt.off);
+      if(cf.band==='GOOD' && rawCrossAt.good!==null)
+        att.recoverGood.push(nowMs-rawCrossAt.good);
+      log('  t='+courseMs.toFixed(0)+'ms -> '+cf.band+'  (lat '+latMs.toFixed(0)+' ms)');
+    }
+  } else if(phase==='ACQUIRE'){
+    // unscored: hold the start altitude inside the GOOD corridor for 300 ms
+    const onStart = ef.voiced && ef.semitones!==null &&
+                    Math.abs(ef.semitones-START_ST)<=GOOD_ENTER;
+    if(onStart){
+      if(acquireGoodSince===null) acquireGoodSince=nowMs;
+      if(nowMs-acquireGoodSince>=ACQUIRE_HOLD_MS) startCountdown();
+    } else acquireGoodSince=null;
+  }
+  if($('chkDev').checked) paintDev(ef,cf);
+}
+
+/* ==========================  VISUAL LAYER  ==========================
+   Consumes CourseFrame. The only EngineFrame value it uses is the learner's
+   semitone position, which is the placeholder indicator itself, and that is
+   drawn from the same frame the band was computed from.                   */
+const cv=$('cv'), g=cv.getContext('2d');
+const ST_MIN=-8, ST_MAX=8;
+function y(st){ return cv.height*(1-(st-ST_MIN)/(ST_MAX-ST_MIN)); }
+function x(ms){ return 60+(cv.width-90)*Math.max(0,Math.min(1,ms/COURSE_MS)); }
+function draw(){
+  g.clearRect(0,0,cv.width,cv.height);
+  g.fillStyle='#0e1319'; g.fillRect(0,0,cv.width,cv.height);
+  // corridor
+  const pts=[]; for(let ms=0;ms<=COURSE_MS;ms+=25) pts.push([x(ms),targetAt(ms)]);
+  const bandFill=(w,col)=>{g.beginPath();
+    pts.forEach((p,i)=> i?g.lineTo(p[0],y(p[1]+w)):g.moveTo(p[0],y(p[1]+w)));
+    for(let i=pts.length-1;i>=0;i--) g.lineTo(pts[i][0],y(pts[i][1]-w));
+    g.closePath(); g.fillStyle=col; g.fill();};
+  bandFill(OFF_EXIT,'rgba(232,179,74,.10)');
+  bandFill(GOOD_ENTER,'rgba(62,201,138,.16)');
+  g.strokeStyle='#6ba8ff'; g.lineWidth=3; g.beginPath();
+  pts.forEach((p,i)=> i?g.lineTo(p[0],y(p[1])):g.moveTo(p[0],y(p[1])));
+  g.stroke();
+  // axis
+  g.strokeStyle='#2c3644'; g.lineWidth=1; g.fillStyle='#8c99aa'; g.font='20px monospace';
+  for(let st=ST_MIN;st<=ST_MAX;st+=4){
+    g.beginPath(); g.moveTo(50,y(st)); g.lineTo(cv.width,y(st)); g.stroke();
+    g.fillText((st>0?'+':'')+st,6,y(st)+7);
+  }
+  // trail
+  g.lineWidth=4;
+  devTrail.forEach(p=>{ if(p.st===null||p.st===undefined) return;
+    g.fillStyle = p.band==='GOOD'?'rgba(62,201,138,.55)':
+                  p.band==='BORDERLINE'?'rgba(232,179,74,.55)':'rgba(239,106,94,.55)';
+    g.beginPath(); g.arc(x(p.t),y(p.st),4,0,6.283); g.fill(); });
+  // cursor + learner
+  if(cur){
+    const cx = phase==='COURSE' ? x(cur.tMs) : x(0);
+    g.strokeStyle='#f2f4f7'; g.lineWidth=2;
+    g.beginPath(); g.moveTo(cx,0); g.lineTo(cx,cv.height); g.stroke();
+    const st = lastEngine && lastEngine.semitones!==null ? lastEngine.semitones : null;
+    if(st!==null){
+      g.fillStyle = cur.band==='GOOD'?'#3ec98a':cur.band==='BORDERLINE'?'#e8b34a':'#ef6a5e';
+      g.beginPath(); g.arc(cx,y(st),16,0,6.283); g.fill();
+      g.strokeStyle='#0e1319'; g.lineWidth=3; g.stroke();
+    }
+    if(phase==='ACQUIRE'){
+      g.fillStyle='#6ba8ff'; g.beginPath(); g.arc(x(0),y(START_ST),9,0,6.283); g.fill();
+    }
+  }
+  const b=cur?cur.band:'IDLE';
+  $('stateBig').textContent = (phase==='ACQUIRE'||phase==='COURSE') ? b : '—';
+  $('stateBig').className='state '+((phase==='ACQUIRE'||phase==='COURSE')?b:'IDLE');
+  requestAnimationFrame(draw);
+}
+
+function paintDev(ef,cf){
+  const r=(k,v)=>'<div class="row"><span class="k">'+k+'</span><span class="v">'+v+'</span></div>';
+  $('devRows').innerHTML=
+    r('phase',phase)+
+    r('f0 raw',ef.f0Hz?ef.f0Hz.toFixed(1)+' Hz':'—')+
+    r('semitones',ef.semitones!==null?ef.semitones.toFixed(2):'—')+
+    r('clarity',ef.clarity.toFixed(3))+
+    r('rms',ef.rmsDb.toFixed(1)+' dBFS')+
+    r('room floor +6',(roomFloorDb!==null?(roomFloorDb+6).toFixed(1):'—')+' dBFS')+
+    r('voiced',ef.voiced)+
+    r('target',cf.targetSt.toFixed(2)+' st')+
+    r('deviation raw',cf.deviationRawSt!==null?cf.deviationRawSt.toFixed(2):'—')+
+    r('deviation median',cf.deviationSt!==null?cf.deviationSt.toFixed(2):'—')+
+    r('band',cf.band+' ('+cf.reason+')')+
+    r('since state',cf.sinceStateMs.toFixed(0)+' ms')+
+    r('worklet gaps',ef._gaps);
+  devSeq.push({t:cf.tMs,f0:ef.f0Hz,st:ef.semitones,cl:+ef.clarity.toFixed(3),
+               v:ef.voiced,tg:+cf.targetSt.toFixed(2),
+               dv:cf.deviationSt!==null?+cf.deviationSt.toFixed(2):null,b:cf.band});
+  if(devSeq.length>4000) devSeq.shift();
+}
+$('chkDev').onchange=e=>$('cardDev').classList.toggle('hidden',!e.target.checked);
+
+/* ==========================  MIC + STARTUP  ========================== */
+$('btnStart').onclick=async()=>{
+  $('btnStart').disabled=true;
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({audio:{
+      echoCancellation:false,noiseSuppression:false,autoGainControl:false,channelCount:1},video:false});
+    track=stream.getAudioTracks()[0];
+    const st=track.getSettings?track.getSettings():{};
+    ctx=new (window.AudioContext||window.webkitAudioContext)();
+    await ctx.resume();
+    const fault=w=>{micHealthy=false;micReason=w;log('!! mic fault: '+w);paintBadge();};
+    track.onmute=()=>fault('track muted');
+    track.onended=()=>fault('track ended');
+    track.onunmute=()=>{micHealthy=true;micReason='';paintBadge();};
+    setInterval(()=>{ if(!track) return;
+      if(track.muted&&micHealthy) fault('track.muted');
+      if(track.readyState!=='live'&&micHealthy) fault('readyState='+track.readyState); },500);
+    ctx.onstatechange=()=>{ log('AudioContext -> '+ctx.state);
+      if(ctx.state!=='running') ctx.resume().catch(()=>{}); };
+    await ctx.audioWorklet.addModule(URL.createObjectURL(
+      new Blob([$('workletSrc').textContent],{type:'application/javascript'})));
+    node=new AudioWorkletNode(ctx,'engine',{numberOfOutputs:0});
+    node.port.onmessage=e=>{
+      const m=e.data;
+      if(m.type==='level'){ if(m.peak>0) lastNonZeroAt=performance.now(); paintBadge(); return; }
+      if(m.type==='frame') onFrame(m);
+    };
+    ctx.createMediaStreamSource(stream).connect(node);
+    const row=(k,v)=>'<div class="row"><span class="k">'+k+'</span><span class="v">'+v+'</span></div>';
+    $('setupRows').innerHTML=row('Sample rate',ctx.sampleRate+' Hz')+
+      row('Device',track.label||'not reported')+
+      row('Tracker','Step 0 unchanged: 32 ms / 10 ms / clarity 0.70 / floor +6 dB');
+    $('cardSetup').classList.add('hidden');
+    $('cardMain').classList.remove('hidden');
+    log('ready. '+ctx.sampleRate+' Hz.');
+    requestAnimationFrame(draw);
+  }catch(e){
+    $('btnStart').disabled=false;
+    $('setupNote').innerHTML='<span class="bad">'+e.name+': '+e.message+'</span>';
+    log('ERROR '+e.name+': '+e.message);
+  }
+};
+function micReady(){ return micHealthy && (performance.now()-lastNonZeroAt)<1500; }
+function paintBadge(){
+  const b=$('micBadge'); if(!b) return;
+  const live=micReady();
+  b.textContent = live?'MIC LIVE':(micHealthy?'NO INPUT':'MIC FAULT: '+micReason);
+  b.className='micbadge '+(live?'ok':'bad');
+}
+$('btnGo').onclick=()=>{ if(!micReady()){ log('BLOCKED: microphone not delivering audio'); return; } beginAttempt(); };
+$('btnAgain').onclick=()=>{ if(!micReady()){ log('BLOCKED: microphone not delivering audio'); return; } beginAttempt(); };
+$('btnAbort').onclick=()=>abortAttempt('aborted by user');
+$('btnDump').onclick=()=>{
+  const blob=new Blob([JSON.stringify({version:VERSION,attempts:attempts,frames:devSeq},null,1)],
+                      {type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='flight1a_'+new Date().toISOString().replace(/[-:T]/g,'').slice(0,12)+'.json';
+  document.body.appendChild(a); a.click(); a.remove();
+};
+</script>
+</body>
+</html>
