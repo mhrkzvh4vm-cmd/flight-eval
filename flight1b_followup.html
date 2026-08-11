@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Flight Academy — Step 1B follow-up</title>
+<style>
+  :root{--ink:#12161c;--panel:#1b222c;--line:#2c3644;--paper:#f2f4f7;--dim:#8c99aa;
+        --ok:#3ec98a;--warn:#e8b34a;--bad:#ef6a5e;--signal:#6ba8ff}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--ink);color:var(--paper);
+    font-family:ui-sans-serif,-apple-system,"Helvetica Neue",sans-serif;
+    font-size:17px;line-height:1.45;padding-bottom:env(safe-area-inset-bottom)}
+  .wrap{max-width:760px;margin:0 auto;padding:18px 18px 60px}
+  h1{font-size:19px;margin:0 0 2px}
+  .sub{color:var(--dim);font-size:13.5px;margin:0 0 16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:16px;margin-bottom:14px}
+  .card h2{font-size:11.5px;text-transform:uppercase;letter-spacing:.09em;
+    color:var(--dim);margin:0 0 12px;font-weight:600}
+  button{font:inherit;font-weight:600;border:0;border-radius:10px;padding:16px 20px;
+    width:100%;margin-bottom:10px;color:#0d1116;background:var(--paper);cursor:pointer}
+  button:disabled{opacity:.3}
+  button.primary{background:var(--signal);color:#08101d}
+  button.ghost{background:transparent;color:var(--paper);border:1px solid var(--line)}
+  .micbadge{text-align:center;font-size:13px;font-weight:700;letter-spacing:.14em;
+    padding:8px;border-radius:8px;margin:0 0 12px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .micbadge.ok{background:rgba(62,201,138,.16);color:var(--ok);border:1px solid var(--ok)}
+  .micbadge.bad{background:rgba(239,106,94,.16);color:var(--bad);border:1px solid var(--bad)}
+  canvas{width:100%;height:300px;display:block;background:#0e1319;
+    border:1px solid var(--line);border-radius:10px}
+  .meter{position:relative;height:30px;background:#0e1319;border:1px solid var(--line);
+    border-radius:8px;overflow:hidden;margin:6px 0}
+  .meter .fill{position:absolute;left:0;top:0;bottom:0;width:0%;background:var(--signal);
+    transition:width .05s linear}
+  .meter .zone{position:absolute;top:0;bottom:0;border-left:2px solid var(--ok);
+    border-right:2px solid var(--ok);background:rgba(62,201,138,.14)}
+  .meter .lbl{position:absolute;right:8px;top:5px;font-size:13px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .mcap{display:flex;justify-content:space-between;font-size:11px;color:var(--dim);
+    text-transform:uppercase;letter-spacing:.07em;margin-top:10px}
+  .mcap span{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    text-transform:none;letter-spacing:0}
+  .guard{border-radius:8px;padding:12px;margin:12px 0;font-size:13.5px;line-height:1.45}
+  .guard.ok{background:rgba(62,201,138,.12);border:1px solid var(--ok);color:var(--paper)}
+  .guard.warn{background:rgba(232,179,74,.14);border:1px solid var(--warn);color:var(--warn)}
+  .state.NO_VOICE{color:var(--signal)}
+  .trialbar{text-align:center;font-size:13px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--dim);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    padding:8px;border:1px solid var(--line);border-radius:8px;margin-bottom:10px}
+  .cue{text-align:center;font-size:40px;font-weight:800;letter-spacing:.04em;
+    padding:10px;border-radius:10px;margin:8px 0}
+  .cue.up{background:rgba(232,179,74,.18);color:var(--warn);border:2px solid var(--warn)}
+  .cue.back{background:rgba(107,168,255,.18);color:var(--signal);border:2px solid var(--signal)}
+  .ready{background:#141b24;border:1px solid var(--signal)}
+  .ready ol{margin:6px 0 0 18px;padding:0} .ready li{margin-bottom:7px}
+  .ready .big{font-size:22px;font-weight:700;color:var(--warn);margin:10px 0 4px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .state{font-size:34px;font-weight:700;text-align:center;margin:14px 0 2px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:-.02em}
+  .state.GOOD{color:var(--ok)} .state.BORDERLINE{color:var(--warn)}
+  .state.OFF_COURSE{color:var(--bad)} .state.IDLE{color:var(--dim)}
+  .phase{text-align:center;font-size:14px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--dim);min-height:20px}
+  .big{font-size:70px;text-align:center;font-weight:700;line-height:1.05;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .row{display:flex;justify-content:space-between;gap:10px;padding:5px 0;
+    border-bottom:1px solid var(--line);font-size:14px}
+  .row:last-child{border-bottom:0}
+  .row .k{color:var(--dim)}
+  .row .v{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;text-align:right}
+  .ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}
+  label.tog{display:flex;align-items:center;gap:10px;color:var(--dim);font-size:15px}
+  label.tog input{width:22px;height:22px}
+  pre{background:#0e1319;border:1px solid var(--line);border-radius:8px;padding:12px;
+    overflow-x:auto;font-size:12px;margin:0;white-space:pre-wrap;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#c6d2e0}
+  .note{font-size:13px;color:var(--dim);margin-top:10px}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Flight Academy — Step 1B follow-up</h1>
+  <p class="sub">3 falling (shortened low hold) + 1 rising departure &middot; minimum follow-up</p>
+
+  <div class="card" id="cardSetup">
+    <h2>Setup</h2>
+    <button id="btnStart" class="primary">Start microphone</button>
+    <div id="setupRows"></div>
+    <div class="note" id="setupNote"></div>
+  </div>
+
+  <div class="card hidden" id="cardMain">
+    <div class="micbadge bad" id="micBadge">NO INPUT</div>
+    <div class="guard warn hidden" id="capWarn"><b>Session frame cap reached.</b>
+      Traces are no longer being recorded. Download the JSON now.</div>
+    <div class="trialbar" id="trialBar">&mdash;</div>
+
+    <div class="card ready hidden" id="readyCard">
+      <h2 id="readyTitle">Next trial</h2>
+      <div id="readyBody"></div>
+      <div class="note hidden" id="restNote"><b>Take a moment.</b> The next trial
+        will not start until you tap. Rest your voice if you need to &mdash; there
+        is no time limit between trials.</div>
+      <button class="primary" id="btnReady" style="margin-top:14px">I'm ready</button>
+    </div>
+    <div class="cue hidden" id="cueBox">&nbsp;</div>
+
+    <div class="mcap" style="margin-top:0"><b>Peak</b><span>hold 1.2 s, decay 24 dB/s &middot; guide &minus;24 to &minus;8</span></div>
+    <div class="meter"><div class="fill" id="pkFill"></div><div class="zone" id="pkZone"></div><div class="lbl" id="pkLbl">&mdash;</div></div>
+    <div class="mcap"><b>RMS</b><span>300 ms window &middot; guide &minus;37 to &minus;23</span></div>
+    <div class="meter"><div class="fill" id="rmFill"></div><div class="zone" id="rmZone"></div><div class="lbl" id="rmLbl">&mdash;</div></div>
+    <div class="note" style="margin-bottom:14px"><b>Speak at your normal Step 0 level.</b>
+    These bands are guidance, not targets to hit &mdash; they exist so this session
+    reproduces roughly the level you used during the Step 0 recordings, instead of
+    sitting just above the energy gate. Do not strain to reach the top of a band.</div>
+
+    <div class="guard hidden" id="calInfo"></div>
+    <canvas id="cv" width="1400" height="600"></canvas>
+    <div class="state IDLE" id="stateBig">&mdash;</div>
+    <div class="phase" id="phaseMsg">ready</div>
+    <div class="big hidden" id="countNum"></div>
+    <div style="margin-top:14px">
+      <button id="btnGo" class="primary">Calibrate &amp; fly</button>
+      <button id="btnAgain" class="ghost hidden">Fly again</button>
+      <button id="btnDump" class="ghost">Download session JSON</button>
+      <button id="btnAbort" class="ghost hidden">Abort attempt</button>
+    </div>
+    <label class="tog" style="margin-top:6px">
+      <input type="checkbox" id="chkDev"> Dev overlay
+    </label>
+  </div>
+
+  <div class="card hidden" id="cardResult">
+    <h2>Attempt result</h2>
+    <div id="resRows"></div>
+    <div class="note">Live path only. This is debug data, not the Step 1 scoring pipeline.</div>
+  </div>
+
+  <div class="card hidden" id="cardDev">
+    <h2>Dev overlay</h2>
+    <div id="devRows"></div>
+
+  </div>
+
+  <div class="card">
+    <h2>Log</h2>
+    <pre id="log">Not started.</pre>
+  </div>
+</div>
+
+<script id="workletSrc" type="text/plain">
+/* Step 0 tracker, unchanged: decimate to ~16 kHz, 32 ms window, 10 ms hop,
+   YIN with threshold 0.15, parabolic interpolation, reject above 0.5.
+   Frame energy over the same 32 ms window. No smoothing, no octave handling. */
+class Engine extends AudioWorkletProcessor {
+  constructor(){
+    super();
+    this.dec = Math.max(1, Math.round(sampleRate/16000));
+    this.srd = sampleRate/this.dec;
+    this.W = Math.round(this.srd*0.032);
+    this.H = Math.round(this.srd*0.010);
+    this.ring = new Float32Array(4096);
+    this.pos = 0; this.filled = 0; this.sinceHop = 0;
+    this.acc = 0; this.accN = 0;
+    this.peakWin = 0; this.msAcc = 0; this.msN = 0; this.sincePeak = 0;
+    this.lastFrame = -1; this.gaps = 0;
+    this.buf = new Float32Array(this.W);
+  }
+  yin(b,n,sr){
+    const tauMax = Math.min(Math.floor(sr/70), n-1);
+    const tauMin = Math.floor(sr/500);
+    const d = new Float32Array(tauMax+1);
+    for(let tau=1;tau<=tauMax;tau++){
+      let s=0; const lim=n-tau;
+      for(let i=0;i<lim;i++){const x=b[i]-b[i+tau]; s+=x*x;}
+      d[tau]=s;
+    }
+    const cm=new Float32Array(tauMax+1); let run=0; cm[0]=1;
+    for(let tau=1;tau<=tauMax;tau++){run+=d[tau]; cm[tau]= run>0 ? d[tau]*tau/run : 1;}
+    let best=-1,val=1;
+    for(let tau=tauMin;tau<=tauMax;tau++){
+      if(cm[tau]<0.15){ while(tau+1<=tauMax && cm[tau+1]<cm[tau]) tau++;
+        best=tau; val=cm[tau]; break; }
+      if(cm[tau]<val){val=cm[tau]; best=tau;}
+    }
+    if(best<tauMin||val>0.5) return [0,0];
+    let t=best;
+    if(best>1&&best<tauMax){const a=cm[best-1],b2=cm[best],c=cm[best+1];
+      const den=2*(2*b2-a-c); if(den!==0) t=best+(c-a)/den;}
+    return [sr/t, 1-val];
+  }
+  process(inputs){
+    const inp=inputs[0]; if(!inp||!inp[0]) return true;
+    const ch=inp[0], N=ch.length;
+    if(typeof currentFrame==='number'){
+      if(this.lastFrame>=0 && currentFrame-this.lastFrame!==N) this.gaps++;
+      this.lastFrame=currentFrame;
+    }
+    for(let i=0;i<N;i++){
+      const s=ch[i], a=s<0?-s:s;
+      if(a>this.peakWin) this.peakWin=a;
+      this.msAcc+=s*s; this.msN++;
+      this.acc+=s;
+      if(++this.accN===this.dec){
+        this.ring[this.pos]=this.acc/this.dec;
+        this.pos=(this.pos+1)%this.ring.length;
+        if(this.filled<this.ring.length) this.filled++;
+        this.acc=0; this.accN=0;
+        if(++this.sinceHop>=this.H && this.filled>=this.W){
+          this.sinceHop=0;
+          let p=(this.pos-this.W+this.ring.length)%this.ring.length;
+          let sum=0;
+          for(let k=0;k<this.W;k++){const v=this.ring[p]; this.buf[k]=v; sum+=v*v; p=(p+1)%this.ring.length;}
+          const rms=Math.sqrt(sum/this.W);
+          const r=this.yin(this.buf,this.W,this.srd);
+          // acousticTime: centre of the analysis window, on the context clock
+          this.port.postMessage({type:'frame', f0:r[0], clarity:r[1],
+            rmsDb: rms>0 ? 20*Math.log10(rms) : -120,
+            acousticTime: currentTime - 0.016, gaps:this.gaps});
+        }
+      }
+    }
+    this.sincePeak+=N;
+    if(this.sincePeak>=2048){
+      this.sincePeak=0;
+      this.port.postMessage({type:'level', peak:this.peakWin,
+        ms: this.msN? this.msAcc/this.msN : 0});
+      this.peakWin=0; this.msAcc=0; this.msN=0;
+    }
+    return true;
+  }
+}
+registerProcessor('engine', Engine);
+</script>
+
+<script>
+/* ==========================================================================
+   FLIGHT ACADEMY — STEP 1A
+   Smallest proof of the core interaction: one paced rising course, live voice,
+   real-time deviation feedback.
+
+   ARCHITECTURE (the separation locked in at the start of the project):
+     acoustic engine  -> EngineFrame  (f0, clarity, rms, voiced, semitones)
+     comparison layer -> CourseFrame  (target, deviation, band, reason)
+     visual layer     -> consumes CourseFrame ONLY
+
+   The visual layer never sees f0. Raw pitch does not drive the display.
+   EngineFrame is visible only behind the dev toggle.
+
+   The Step 0 tracker and its gates are used UNCHANGED: 32 ms window, 10 ms
+   hop, clarity 0.70, energy above the measured room floor + 6 dB.
+   ========================================================================== */
+const VERSION='flight1b-followup-v1';
+
+/* ---- courses. Semitones relative to the calibrated baseline.
+       Rising and falling keep the Step 1A ramp rate of 3.0 st/s (6 st over
+       2.0 s); the extra time goes into the holds so the 5 s length does not
+       change the difficulty of the ramp itself. Level is the zero-excursion
+       control against which tracking lag on a moving target is measured. ---- */
+/* Step 1B established rising and level at 5.0 s. The only open question is
+   whether the falling failures came from the 2.0 s sustained hold at -3 st, so
+   falling alone is shortened to a 1.0 s low hold. The +3 -> -3 excursion and
+   the 3.0 st/s ramp are unchanged; the ramp itself is identical to before. */
+const SHAPES={
+  rising:  {label:'RISING',  ms:5000,
+            pts:[{t:0,st:-3},{t:1.0,st:-3},{t:3.0,st:+3},{t:5.0,st:+3}]},
+  falling: {label:'FALLING', ms:4000,
+            pts:[{t:0,st:+3},{t:1.0,st:+3},{t:3.0,st:-3},{t:4.0,st:-3}]},
+  level:   {label:'LEVEL',   ms:5000, pts:[{t:0,st:0},{t:5.0,st:0}]}
+};
+function courseMsOf(shape){ return SHAPES[shape].ms; }
+function targetAtShape(ms,shape){
+  const P=SHAPES[shape].pts, t=ms/1000;
+  if(t<=P[0].t) return P[0].st;
+  for(let i=1;i<P.length;i++){
+    if(t<=P[i].t){ const a=P[i-1],b=P[i];
+      return a.st+(b.st-a.st)*(t-a.t)/(b.t-a.t); }
+  }
+  return P[P.length-1].st;
+}
+function targetAt(ms){ return targetAtShape(ms, curShape); }
+function startStOf(shape){ return SHAPES[shape].pts[0].st; }
+
+/* ---- 12-trial protocol, driven by the app so trial identity is recorded
+       rather than reconstructed. Shapes are interleaved so warm-up, fatigue
+       and baseline drift cannot be systematically confounded with shape. ---- */
+const PLAN=[
+  {shape:'falling',role:'follow'},
+  {shape:'falling',role:'follow'},
+  {shape:'falling',role:'follow'},
+  {shape:'rising', role:'departure'}
+];
+/* departure cue timing and the precommitted validity rule */
+const CUE_MS=1600, BACK_MS=2000, CUE_WINDOW_MS=800;
+const DEPART_ST=3.3, DEPART_MIN_FRAMES=3;
+let trialIdx=0, curShape='rising', curRole='follow';
+
+/* ---- corridor and state machine ---- */
+const GOOD_ENTER=1.5, GOOD_EXIT=1.8, OFF_ENTER=3.3, OFF_EXIT=3.0;
+const DWELL_IMPROVE_MS=200, DWELL_WORSEN_MS=120;
+const MEDIAN_N=5;
+
+/* ---- gates, unchanged from Step 0 ---- */
+const CLARITY_GATE=0.70, ENERGY_MARGIN_DB=6;
+
+/* ---- input-level guidance, unchanged from correction.html (A1-derived).
+        DISPLAY ONLY. These bands never touch the energy gate above. ---- */
+const HOLD_MS=1200, DECAY_DB_PER_S=24, RMS_TAU_S=0.30;
+const PK_LO=-24, PK_HI=-8, RM_LO=-37, RM_HI=-23, PK_WARN=-3;
+let pkHoldDb=-99, pkHoldAt=0, msState=0, msInit=false, lastLevelAt=0;
+
+/* ---- calibration sanity reference: the Step 0 A1 baseline was 120.4-122.7 Hz ---- */
+const STEP0_REF_HZ=121.4, CAL_WARN_ST=4.0;
+
+/* ---- latency anchoring ----------------------------------------------------
+   The audio clock does not advance while the main thread is busy, so a
+   latency computed entirely on ctx.currentTime is a constant: it can only
+   ever return the analysis-window offset. Anchoring performance.now() to the
+   audio clock and measuring in wall time captures the delay that clock hides.
+   anchorOff is the RUNNING MINIMUM of (perfNow - audioTime), i.e. the least
+   delayed observation of the relationship between the two clocks; using the
+   minimum means main-thread delay inflates the measured latency rather than
+   the anchor, which is the conservative direction. -------------------------- */
+let anchorOff=null, anchorSeen=0;
+
+/* ---- phases ---- */
+const CAL_ROOM_MS=1000, CAL_VOICE_MS=3000;
+const ACQUIRE_HOLD_MS=300, ACQUIRE_TIMEOUT_MS=25000;
+const COUNTDOWN_BEAT_MS=600, COUNTDOWN_BEATS=3;
+
+const $=id=>document.getElementById(id);
+let lines=[]; function log(s){lines.push(s); if(lines.length>60) lines.shift();
+  $('log').textContent=lines.join('\n');}
+
+let ctx,node,stream,track;
+let micHealthy=true, micReason='', lastNonZeroAt=0;
+let phase='IDLE';
+let roomFloorDb=null, baselineHz=null;
+let calBuf=[], calRms=[], calSeen=0, phaseStart=0, phaseTimer=null;
+let calInfo=null;
+let devSeq=[], attempts=[], attemptNo=0;
+/* Full-session frame retention. Capture is unconditional and independent of
+   the dev overlay; frames are stored per attempt so no attempt can be partly
+   clipped. There is no rolling discard — if the session cap is ever reached
+   the user is warned loudly rather than losing traces silently. */
+const SESSION_FRAME_CAP=60000;
+let sessionFrames=0, capWarned=false;
+let gapsAtCourseStart=null, lastGaps=0;
+let cur=null;                 // latest CourseFrame
+let lastEngine=null;          // latest EngineFrame (dev only)
+let devTrail=[];
+
+/* ==========================  ACOUSTIC ENGINE  ========================== */
+function makeEngineFrame(m){
+  const voiced = m.f0>0 && m.clarity>CLARITY_GATE &&
+                 (roomFloorDb===null || m.rmsDb > roomFloorDb+ENERGY_MARGIN_DB);
+  return {
+    tMs: null,
+    f0Hz: m.f0>0 ? m.f0 : null,
+    semitones: (voiced && baselineHz) ? 12*Math.log2(m.f0/baselineHz) : null,
+    clarity: m.clarity,
+    rmsDb: m.rmsDb,
+    voiced: voiced,
+    acousticTime: m.acousticTime
+  };
+}
+
+/* =======================  COMPARISON LAYER  ======================== */
+const med=[];
+function pushMedian(v){
+  med.push(v); if(med.length>MEDIAN_N) med.shift();
+  const s=med.slice().sort((a,b)=>a-b);
+  return s[Math.floor(s.length/2)];
+}
+function resetMedian(){ med.length=0; }
+
+let band='OFF_COURSE', bandSince=0, pendingBand=null, pendingSince=0, bandSeeded=false;
+let rawCrossAt={off:null,good:null};
+function resetBand(now){ band='OFF_COURSE'; bandSince=now; pendingBand=null;
+  bandSeeded=false; rawCrossAt={off:null,good:null}; }
+
+function bandFor(dev, current){
+  if(dev===null) return 'OFF_COURSE';
+  const a=Math.abs(dev);
+  if(current==='GOOD')       return a<=GOOD_EXIT ? 'GOOD' : (a>OFF_ENTER?'OFF_COURSE':'BORDERLINE');
+  if(current==='OFF_COURSE') return a<=GOOD_ENTER ? 'GOOD' : (a<=OFF_EXIT?'BORDERLINE':'OFF_COURSE');
+  return a<=GOOD_ENTER ? 'GOOD' : (a>OFF_ENTER?'OFF_COURSE':'BORDERLINE');
+}
+const RANK={GOOD:0,BORDERLINE:1,OFF_COURSE:2};
+
+function stepStateMachine(dev, nowMs){
+  const want=bandFor(dev,band);
+  if(want===band){ pendingBand=null; return false; }
+  if(pendingBand!==want){ pendingBand=want; pendingSince=nowMs; }
+  const dwell = RANK[want]>RANK[band] ? DWELL_WORSEN_MS : DWELL_IMPROVE_MS;
+  if(nowMs-pendingSince>=dwell){
+    band=want; bandSince=nowMs; pendingBand=null; return true;
+  }
+  return false;
+}
+
+function makeCourseFrame(ef, courseMs, nowMs){
+  const target=targetAt(courseMs);
+  let devRaw=null, dev=null;
+  if(ef.voiced && ef.semitones!==null){
+    devRaw=ef.semitones-target;
+    dev=pushMedian(devRaw);
+  } else {
+    resetMedian();
+  }
+  // raw crossings, for honest detection-latency measurement
+  if(devRaw!==null){
+    if(Math.abs(devRaw)>OFF_ENTER && rawCrossAt.off===null) rawCrossAt.off=nowMs;
+    if(Math.abs(devRaw)<=GOOD_ENTER && rawCrossAt.good===null) rawCrossAt.good=nowMs;
+    if(Math.abs(devRaw)<=OFF_ENTER) rawCrossAt.off=null;
+    if(Math.abs(devRaw)>GOOD_ENTER) rawCrossAt.good=null;
+  }
+  // Seed the band from the first scored frame with no dwell, so the course does
+  // not open with a phantom OFF_COURSE -> GOOD transition. Acquisition has just
+  // held the start altitude, so there is a real state to start from.
+  let changed=false;
+  if(!bandSeeded && dev!==null){
+    band=bandFor(dev,'NONE'); bandSince=nowMs; bandSeeded=true; pendingBand=null;
+  } else {
+    changed=stepStateMachine(dev, nowMs);
+  }
+  let reason='on_course';
+  if(!ef.voiced) reason='no_voice';
+  else if(band==='OFF_COURSE') reason='off_pitch';
+  else if(band==='BORDERLINE') reason='drifting';
+  return {tMs:courseMs, progress:Math.max(0,Math.min(1,courseMs/courseMsOf(curShape))),
+          targetSt:target, deviationSt:dev, deviationRawSt:devRaw,
+          band:band, reason:reason, sinceStateMs:nowMs-bandSince, changed:changed};
+}
+
+/* ==========================  PHASES  ========================== */
+function paintTrialBar(){
+  const b=$('trialBar'); if(!b) return;
+  if(trialIdx>=PLAN.length){ b.textContent='protocol complete — '+PLAN.length+' of '+PLAN.length; return; }
+  const p=PLAN[trialIdx];
+  b.textContent='trial '+(trialIdx+1)+' of '+PLAN.length+'  ·  '+
+    SHAPES[p.shape].label+'  ·  '+(p.role==='departure'?'DEPARTURE + RECOVERY':'follow');
+}
+
+function setPhase(p,msg){
+  phase=p; phaseStart=performance.now();
+  $('phaseMsg').textContent=msg||p;
+  log('phase -> '+p);
+}
+function clearPhaseTimer(){ if(phaseTimer){clearTimeout(phaseTimer); phaseTimer=null;} }
+
+let att=null;   // current attempt record
+
+function beginAttempt(){
+  clearPhaseTimer();
+  if(trialIdx>=PLAN.length){ log('protocol complete — 12 trials recorded'); return; }
+  curShape=PLAN[trialIdx].shape; curRole=PLAN[trialIdx].role;
+  attemptNo++;
+  att={n:attemptNo, started:new Date().toISOString(), transitions:[],
+       latencies:[], frames:0, voicedFrames:0, goodMs:0, noVoiceMs:0,
+       gaps:0, detectOff:[], recoverGood:[], cal:null,
+       shape:curShape, role:curRole, trial:trialIdx+1,
+       trace:[],                       // complete per-attempt frame record
+       departRun:0, departValid:false, departFirstMs:null,
+       physicalReturnMs:null, recoverAms:null, recoverBms:null,
+       settledSince:null};
+  calBuf=[]; calRms=[]; calSeen=0; calInfo=null; roomFloorDb=null; baselineHz=null;
+  $('calInfo').classList.add('hidden');
+  anchorOff=null; anchorSeen=0;
+  devTrail=[];
+  $('cardResult').classList.add('hidden');
+  $('cueBox').className='cue hidden';
+  paintTrialBar();
+  $('btnGo').classList.add('hidden'); $('btnAgain').classList.add('hidden');
+  $('btnAbort').classList.remove('hidden');
+  setPhase('CAL_ROOM','stay silent — measuring the room');
+  phaseTimer=setTimeout(()=>{
+    const v=calBuf.filter(x=>isFinite(x));
+    roomFloorDb = v.length ? median(v) : -60;
+    log('room floor '+roomFloorDb.toFixed(1)+' dBFS from '+v.length+' frames');
+    calBuf=[];
+    setPhase('CAL_VOICE','say a comfortable steady "ah"');
+    phaseTimer=setTimeout(()=>{
+      const f=calBuf.filter(x=>x>0);
+      if(f.length<30){ abortAttempt('calibration failed — too few voiced frames above the room floor'); return; }
+      baselineHz=median(f);
+      const srt=f.slice().sort((a,b)=>a-b);
+      const q=p=>srt[Math.min(srt.length-1,Math.floor(srt.length*p))];
+      calInfo={ baselineHz:baselineHz, frames:f.length, seen:calSeen,
+        acceptedPct:100*f.length/Math.max(1,calSeen),
+        iqrSt:12*Math.log2(q(0.75)/Math.max(q(0.25),1e-9)),
+        rmsDb: calRms.length? median(calRms) : null,
+        roomFloorDb: roomFloorDb,
+        offsetFromRefSt: 12*Math.log2(baselineHz/STEP0_REF_HZ) };
+      showCalInfo();
+      log('baseline F0 '+baselineHz.toFixed(1)+' Hz from '+f.length+' of '+calSeen+
+          ' frames, spread '+calInfo.iqrSt.toFixed(2)+' st, level '+
+          (calInfo.rmsDb!==null?calInfo.rmsDb.toFixed(1):'?')+' dBFS');
+      calBuf=[]; calRms=[];
+      resetMedian(); resetBand(performance.now());
+      setPhase('ACQUIRE','find and hold the starting altitude');
+      phaseTimer=setTimeout(()=>abortAttempt('could not acquire the starting altitude'),
+                            ACQUIRE_TIMEOUT_MS);
+    },CAL_VOICE_MS);
+  },CAL_ROOM_MS);
+}
+function median(a){const s=a.slice().sort((x,y)=>x-y);return s[Math.floor(s.length/2)];}
+
+let acquireGoodSince=null;
+function startCountdown(){
+  clearPhaseTimer(); acquireGoodSince=null;
+  setPhase('COUNTDOWN','hold your note');
+  let n=COUNTDOWN_BEATS;
+  $('countNum').classList.remove('hidden'); $('countNum').textContent=n;
+  const tick=()=>{
+    n--;
+    if(n>0){ $('countNum').textContent=n; phaseTimer=setTimeout(tick,COUNTDOWN_BEAT_MS); }
+    else{
+      $('countNum').classList.add('hidden');
+      resetMedian(); resetBand(performance.now());
+      // per-attempt gap DELTA. Step 1A snapshotted the cumulative counter,
+      // which always read 0 and silently failed to measure anything.
+      gapsAtCourseStart = lastGaps;
+      setPhase('COURSE','fly the course');
+      phaseTimer=setTimeout(endAttempt, courseMsOf(curShape)+120);
+    }
+  };
+  phaseTimer=setTimeout(tick,COUNTDOWN_BEAT_MS);
+}
+
+function abortAttempt(why){
+  clearPhaseTimer();
+  log('ABORT: '+why);
+  setPhase('IDLE',why);
+  $('btnAbort').classList.add('hidden');
+  $('btnGo').classList.remove('hidden');
+  $('readyCard').classList.add('hidden');
+  $('stateBig').textContent='—'; $('stateBig').className='state IDLE';
+  att=null;
+}
+
+function endAttempt(){
+  clearPhaseTimer();
+  setPhase('DONE','attempt complete');
+  $('btnAbort').classList.add('hidden');
+  $('btnAgain').classList.remove('hidden');
+  $('btnAgain').textContent = 'Next trial';
+  $('cueBox').className='cue hidden';
+  const scoredMs = Math.max(1, att.frames*10);
+  const goodPct = Math.min(100, 100*att.goodMs/scoredMs);
+  const lat = att.latencies.length ? att.latencies.slice().sort((a,b)=>a-b) : [];
+  const p=(q)=>lat.length? lat[Math.min(lat.length-1,Math.floor(lat.length*q))] : null;
+  att.result={
+    stateChanges: att.transitions.length,
+    timeInGoodPct: +goodPct.toFixed(1),
+    voicedPct: att.frames? +(100*att.voicedFrames/att.frames).toFixed(1) : 0,
+    latencyMedianMs: p(0.5)!==null? +p(0.5).toFixed(1):null,
+    latencyP95Ms: p(0.95)!==null? +p(0.95).toFixed(1):null,
+    detectOffMs: att.detectOff.map(v=>+v.toFixed(0)),
+    recoverGoodMs: att.recoverGood.map(v=>+v.toFixed(0)),
+    baselineHz:+baselineHz.toFixed(1), roomFloorDb:+roomFloorDb.toFixed(1),
+    noVoicePct:+Math.min(100,100*att.noVoiceMs/scoredMs).toFixed(1),
+    latencyMinMs: lat.length? +lat[0].toFixed(1):null,
+    latencySpreadMs: lat.length? +(lat[lat.length-1]-lat[0]).toFixed(1):null,
+    calibration: calInfo
+  };
+  att.cal=calInfo;
+  att.gaps = (gapsAtCourseStart===null) ? 0 : Math.max(0, lastGaps-gapsAtCourseStart);
+  att.result.gaps = att.gaps;
+  att.result.shape = att.shape;
+  att.result.role = att.role;
+  att.result.trial = att.trial;
+  att.result.baselineOffsetSt = calInfo ? +calInfo.offsetFromRefSt.toFixed(2) : null;
+  if(att.role==='departure'){
+    att.result.departValid = att.departValid;
+    att.result.recoverA_cueToFirstReturnMs = att.recoverAms!==null? Math.round(att.recoverAms):null;
+    att.result.recoverB_settledToGoodMs = att.recoverBms!==null? Math.round(att.recoverBms):null;
+  }
+  // A departure trial only advances the protocol if the departure was actually
+  // executed. An unexecuted departure is re-run and never counted against the
+  // engine — the rule was fixed before any data existed.
+  const repeatTrial = (att.role==='departure' && !att.departValid);
+  if(repeatTrial){
+    log('trial '+att.trial+' INVALID-EXECUTION: no departure detected — repeating after a pause');
+    restPending=true;          // forces the rest note on the next ready screen
+  } else trialIdx++;
+  attempts.push(att);
+  const row=(k,v,c)=>'<div class="row"><span class="k">'+k+'</span><span class="v '+(c||'')+'">'+v+'</span></div>';
+  const r=att.result;
+  $('resRows').innerHTML=
+    row('Trial', att.trial+' of '+PLAN.length+' — '+SHAPES[att.shape].label+' / '+att.role)+
+    row('Attempt', att.n)+
+    row('Time in GOOD (scored course)', r.timeInGoodPct+'%', r.timeInGoodPct>=80?'ok':r.timeInGoodPct>=60?'warn':'bad')+
+    row('State changes', r.stateChanges, r.stateChanges<=2?'ok':r.stateChanges<=5?'warn':'bad')+
+    row('Voiced frames', r.voicedPct+'%')+
+    row('Sound&rarr;state latency, median', (r.latencyMedianMs??'—')+' ms',
+        r.latencyMedianMs!=null&&r.latencyMedianMs<=100?'ok':r.latencyMedianMs!=null&&r.latencyMedianMs<=180?'warn':'bad')+
+    row('Sound&rarr;state latency, p95', (r.latencyP95Ms??'—')+' ms')+
+    row('Latency min / spread', (r.latencyMinMs??'—')+' / '+(r.latencySpreadMs??'—')+' ms',
+        (r.latencySpreadMs!=null&&r.latencySpreadMs>0.5)?'ok':'bad')+
+    row('Time with NO VOICE', r.noVoicePct+'%', r.noVoicePct<=10?'ok':r.noVoicePct<=25?'warn':'bad')+
+    row('Calibration level', (calInfo&&calInfo.rmsDb!==null?calInfo.rmsDb.toFixed(1):'—')+' dBFS'+
+        (calInfo?' · '+calInfo.frames+' frames · spread '+calInfo.iqrSt.toFixed(2)+' st':''))+
+    row('Departure detected in', r.detectOffMs.length? r.detectOffMs.join(', ')+' ms':'—')+
+    row('Recovery to GOOD in', r.recoverGoodMs.length? r.recoverGoodMs.join(', ')+' ms':'—')+
+    row('Baseline / offset from ref', r.baselineHz+' Hz / '+
+        (r.baselineOffsetSt>=0?'+':'')+r.baselineOffsetSt+' st')+
+    row('Worklet gaps (this attempt)', att.gaps, att.gaps===0?'ok':'bad')+
+    (att.role==='departure' ? (
+      row('Departure executed', att.departValid?'yes':'NO — trial repeats',
+          att.departValid?'ok':'bad')+
+      row('A cue &rarr; first return (human)', att.recoverAms!==null?
+          Math.round(att.recoverAms)+' ms (descriptive)':'—')+
+      row('B settled return &rarr; GOOD (system)', att.recoverBms!==null?
+          Math.round(att.recoverBms)+' ms':'—',
+          att.recoverBms!==null&&att.recoverBms<=400?'ok':'bad')
+    ) : '')+
+    row('Baseline / room floor', r.baselineHz+' Hz / '+r.roomFloorDb+' dBFS');
+  $('cardResult').classList.remove('hidden');
+  log('attempt '+att.n+': GOOD '+r.timeInGoodPct+'%, '+r.stateChanges+
+      ' changes, latency med '+r.latencyMedianMs+' ms');
+  att=null;
+  $('stateBig').textContent='—'; $('stateBig').className='state IDLE';
+}
+
+/* ==========================  FRAME HANDLER  ========================== */
+function onFrame(m){
+  const nowMs=performance.now();
+  // clock anchor: least-delayed observed offset between wall and audio clocks
+  const off=nowMs - ctx.currentTime*1000;
+  anchorSeen++;
+  if(anchorOff===null || off<anchorOff) anchorOff=off;
+  // wall-clock instant corresponding to the centre of this analysis window
+  const acousticWallMs = m.acousticTime*1000 + (anchorOff===null?0:anchorOff);
+  const ef=makeEngineFrame(m);
+  ef._gaps=m.gaps; lastGaps=m.gaps;
+  lastEngine=ef;
+  if(m.gaps && (!lastEngine._loggedGaps)){ lastEngine._loggedGaps=true; log('!! worklet gaps: '+m.gaps); }
+
+  if(phase==='CAL_ROOM'){ calBuf.push(m.rmsDb); return; }
+  if(phase==='CAL_VOICE'){
+    // Same voicing rule the live engine uses: clarity AND energy above the
+    // measured room floor. Gate values are unchanged; only this collection
+    // point, which previously used clarity alone, now obeys the same rule.
+    if(ef.voiced){ calBuf.push(m.f0); calRms.push(m.rmsDb); }
+    calSeen++;
+    return;
+  }
+  if(phase!=='ACQUIRE' && phase!=='COUNTDOWN' && phase!=='COURSE') return;
+
+  const courseMs = phase==='COURSE' ? (nowMs-phaseStart) : 0;
+  // Score only frames inside the course window. The phase timer runs slightly
+  // long so the last frame is not lost; those extra frames must not be counted.
+  const scored = phase==='COURSE' && courseMs<=courseMsOf(curShape);
+  const cf=makeCourseFrame(ef, scored?courseMs:0, nowMs);
+  cur=cf;
+
+  if(scored){
+    att.frames++;
+    if(ef.voiced) att.voicedFrames++;
+    if(cf.band==='GOOD') att.goodMs+=10;
+    if(cf.reason==='no_voice') att.noVoiceMs+=10;   // reported, never scored
+
+    if(curRole==='departure'){
+      const cb=$('cueBox');
+      if(courseMs>=CUE_MS && courseMs<BACK_MS){ cb.textContent='JUMP UP'; cb.className='cue up'; }
+      else if(courseMs>=BACK_MS && courseMs<BACK_MS+1200){ cb.textContent='COME BACK'; cb.className='cue back'; }
+      else cb.className='cue hidden';
+      const dr=cf.deviationRawSt;
+      // precommitted validity: raw deviation above +3.3 st for >=3 consecutive
+      // voiced frames, beginning within CUE_WINDOW_MS of the cue
+      if(dr!==null && dr>DEPART_ST && courseMs>=CUE_MS && courseMs<=CUE_MS+CUE_WINDOW_MS){
+        att.departRun++;
+        if(att.departRun>=DEPART_MIN_FRAMES && !att.departValid){
+          att.departValid=true;
+          att.departFirstMs=courseMs-(DEPART_MIN_FRAMES-1)*10;
+        }
+      } else if(dr===null || dr<=DEPART_ST){ att.departRun=0; }
+      // A: cue -> first raw frame back inside the corridor after a valid departure
+      if(att.departValid && att.physicalReturnMs===null &&
+         dr!==null && Math.abs(dr)<=GOOD_ENTER && courseMs>att.departFirstMs+100){
+        att.physicalReturnMs=courseMs;
+        att.recoverAms=courseMs-CUE_MS;
+      }
+      // B: SETTLED return -> band reaches GOOD.
+      // Step 1B measured this from the first transient corridor crossing, which
+      // recorded the learner's overshoot (861/800 ms) rather than the system.
+      // settledSince tracks the start of the CURRENT uninterrupted run inside
+      // the corridor, so B is the time the state machine took once the learner
+      // had actually settled.
+      const dv=cf.deviationSt;
+      if(dv!==null && Math.abs(dv)<=GOOD_ENTER){
+        if(att.settledSince===null) att.settledSince=courseMs;
+      } else {
+        att.settledSince=null;
+      }
+      if(att.departValid && att.recoverBms===null &&
+         cf.band==='GOOD' && att.settledSince!==null && courseMs>att.departFirstMs){
+        att.recoverBms=courseMs-att.settledSince;
+      }
+    }
+    // Sound -> state latency, measured on EVERY scored frame, not only on
+    // transitions, so a clean attempt still yields a measurement. Both times
+    // are on the AudioContext clock: window centre to decision.
+    // Captures: analysis-window offset, worklet->main transport, main-thread
+    // scheduling, and comparison/state-machine processing up to this point.
+    // Does NOT capture: physical acoustic input latency ahead of the
+    // AudioContext timestamp (mic, ADC, OS buffering) or display scan-out,
+    // neither of which is measurable from inside the page.
+    att.latencies.push(nowMs - acousticWallMs);
+    devTrail.push({t:courseMs, st:ef.semitones, band:cf.band});
+    if(cf.changed){
+      // sound -> state latency on the SAME clock: acoustic window centre to decision
+      const latMs=nowMs - acousticWallMs;
+      att.transitions.push({tMs:+courseMs.toFixed(0), band:cf.band, latMs:+latMs.toFixed(1)});
+      if(cf.band==='OFF_COURSE' && rawCrossAt.off!==null)
+        att.detectOff.push(nowMs-rawCrossAt.off);
+      if(cf.band==='GOOD' && rawCrossAt.good!==null)
+        att.recoverGood.push(nowMs-rawCrossAt.good);
+      log('  t='+courseMs.toFixed(0)+'ms -> '+cf.band+'  (lat '+latMs.toFixed(0)+' ms)');
+    }
+  } else if(phase==='ACQUIRE'){
+    // unscored: hold the start altitude inside the GOOD corridor for 300 ms
+    const onStart = ef.voiced && ef.semitones!==null &&
+                    Math.abs(ef.semitones-startStOf(curShape))<=GOOD_ENTER;
+    if(onStart){
+      if(acquireGoodSince===null) acquireGoodSince=nowMs;
+      if(nowMs-acquireGoodSince>=ACQUIRE_HOLD_MS) startCountdown();
+    } else acquireGoodSince=null;
+  }
+  // Capture is UNCONDITIONAL and independent of the overlay. Only the DOM
+  // painting is gated, so turning the overlay off reduces main-thread work
+  // rather than losing data.
+  captureFrame(ef,cf);
+  if($('chkDev').checked) paintDev(ef,cf);
+}
+
+/* ==========================  VISUAL LAYER  ==========================
+   Consumes CourseFrame. The only EngineFrame value it uses is the learner's
+   semitone position, which is the placeholder indicator itself, and that is
+   drawn from the same frame the band was computed from.                   */
+const cv=$('cv'), g=cv.getContext('2d');
+const ST_MIN=-8, ST_MAX=8;
+function y(st){ return cv.height*(1-(st-ST_MIN)/(ST_MAX-ST_MIN)); }
+function x(ms){ return 60+(cv.width-90)*Math.max(0,Math.min(1,ms/courseMsOf(curShape))); }
+function draw(){
+  g.clearRect(0,0,cv.width,cv.height);
+  g.fillStyle='#0e1319'; g.fillRect(0,0,cv.width,cv.height);
+  // corridor
+  const pts=[]; for(let ms=0;ms<=courseMsOf(curShape);ms+=25) pts.push([x(ms),targetAtShape(ms,curShape)]);
+  const bandFill=(w,col)=>{g.beginPath();
+    pts.forEach((p,i)=> i?g.lineTo(p[0],y(p[1]+w)):g.moveTo(p[0],y(p[1]+w)));
+    for(let i=pts.length-1;i>=0;i--) g.lineTo(pts[i][0],y(pts[i][1]-w));
+    g.closePath(); g.fillStyle=col; g.fill();};
+  bandFill(OFF_EXIT,'rgba(232,179,74,.10)');
+  bandFill(GOOD_ENTER,'rgba(62,201,138,.16)');
+  g.strokeStyle='#6ba8ff'; g.lineWidth=3; g.beginPath();
+  pts.forEach((p,i)=> i?g.lineTo(p[0],y(p[1])):g.moveTo(p[0],y(p[1])));
+  g.stroke();
+  // axis
+  g.strokeStyle='#2c3644'; g.lineWidth=1; g.fillStyle='#8c99aa'; g.font='20px monospace';
+  for(let st=ST_MIN;st<=ST_MAX;st+=4){
+    g.beginPath(); g.moveTo(50,y(st)); g.lineTo(cv.width,y(st)); g.stroke();
+    g.fillText((st>0?'+':'')+st,6,y(st)+7);
+  }
+  // trail
+  g.lineWidth=4;
+  devTrail.forEach(p=>{ if(p.st===null||p.st===undefined) return;
+    g.fillStyle = p.band==='GOOD'?'rgba(62,201,138,.55)':
+                  p.band==='BORDERLINE'?'rgba(232,179,74,.55)':'rgba(239,106,94,.55)';
+    // (no-voice frames carry no pitch, so they simply leave a gap in the trail)
+    g.beginPath(); g.arc(x(p.t),y(p.st),4,0,6.283); g.fill(); });
+  // cursor + learner
+  if(cur){
+    const cx = phase==='COURSE' ? x(cur.tMs) : x(0);
+    g.strokeStyle='#f2f4f7'; g.lineWidth=2;
+    g.beginPath(); g.moveTo(cx,0); g.lineTo(cx,cv.height); g.stroke();
+    const st = lastEngine && lastEngine.semitones!==null ? lastEngine.semitones : null;
+    if(st!==null){
+      g.fillStyle = cur.reason==='no_voice' ? '#6ba8ff'
+                  : cur.band==='GOOD'?'#3ec98a':cur.band==='BORDERLINE'?'#e8b34a':'#ef6a5e';
+      g.beginPath(); g.arc(cx,y(st),16,0,6.283); g.fill();
+      g.strokeStyle='#0e1319'; g.lineWidth=3; g.stroke();
+    }
+    if(phase==='ACQUIRE'){
+      g.fillStyle='#6ba8ff'; g.beginPath(); g.arc(x(0),y(startStOf(curShape)),9,0,6.283); g.fill();
+    }
+  }
+  // The learner must never be told they are off pitch when the real problem is
+  // absent phonation. The scored band is unchanged; only its presentation
+  // splits OFF_COURSE into two honest cases using CourseFrame.reason.
+  const live=(phase==='ACQUIRE'||phase==='COURSE');
+  let shown='IDLE', label='—';
+  if(live && cur){
+    if(cur.reason==='no_voice'){ shown='NO_VOICE'; label='NO VOICE'; }
+    else { shown=cur.band; label=cur.band.replace('_',' '); }
+  }
+  $('stateBig').textContent=label;
+  $('stateBig').className='state '+shown;
+  $('phaseMsg').textContent = (live && cur && cur.reason==='no_voice')
+    ? 'keep the sound going — the engine has no pitch to follow'
+    : $('phaseMsg').textContent;
+  requestAnimationFrame(draw);
+}
+
+function captureFrame(ef,cf){
+  if(!att) return;
+  if(sessionFrames>=SESSION_FRAME_CAP){
+    if(!capWarned){ capWarned=true;
+      log('!! session frame cap reached — traces are no longer being recorded');
+      $('capWarn').classList.remove('hidden'); }
+    return;
+  }
+  sessionFrames++;
+  att.trace.push({t:+cf.tMs.toFixed(0), ph:phase,
+    f0:ef.f0Hz===null?null:+ef.f0Hz.toFixed(1),
+    st:ef.semitones===null?null:+ef.semitones.toFixed(3),
+    cl:+ef.clarity.toFixed(3), rms:+ef.rmsDb.toFixed(1), v:ef.voiced,
+    tg:+cf.targetSt.toFixed(3),
+    dvr:cf.deviationRawSt===null?null:+cf.deviationRawSt.toFixed(3),
+    dv:cf.deviationSt===null?null:+cf.deviationSt.toFixed(3),
+    b:cf.band, r:cf.reason, g:ef._gaps});
+}
+
+function paintDev(ef,cf){
+  const r=(k,v)=>'<div class="row"><span class="k">'+k+'</span><span class="v">'+v+'</span></div>';
+  $('devRows').innerHTML=
+    r('phase',phase)+
+    r('f0 raw',ef.f0Hz?ef.f0Hz.toFixed(1)+' Hz':'—')+
+    r('semitones',ef.semitones!==null?ef.semitones.toFixed(2):'—')+
+    r('clarity',ef.clarity.toFixed(3))+
+    r('rms',ef.rmsDb.toFixed(1)+' dBFS')+
+    r('room floor +6',(roomFloorDb!==null?(roomFloorDb+6).toFixed(1):'—')+' dBFS')+
+    r('voiced',ef.voiced)+
+    r('target',cf.targetSt.toFixed(2)+' st')+
+    r('deviation raw',cf.deviationRawSt!==null?cf.deviationRawSt.toFixed(2):'—')+
+    r('deviation median',cf.deviationSt!==null?cf.deviationSt.toFixed(2):'—')+
+    r('band',cf.band+' ('+cf.reason+')')+
+    r('since state',cf.sinceStateMs.toFixed(0)+' ms')+
+    r('worklet gaps',ef._gaps);
+  devSeq.push({t:cf.tMs,f0:ef.f0Hz,st:ef.semitones,cl:+ef.clarity.toFixed(3),
+               v:ef.voiced,tg:+cf.targetSt.toFixed(2),
+               dv:cf.deviationSt!==null?+cf.deviationSt.toFixed(2):null,b:cf.band});
+  if(devSeq.length>600) devSeq.shift();   // live overlay only; the authoritative
+                                          // record is att.trace, captured above
+}
+$('chkDev').onchange=e=>$('cardDev').classList.toggle('hidden',!e.target.checked);
+
+/* ==========================  MIC + STARTUP  ========================== */
+$('btnStart').onclick=async()=>{
+  $('btnStart').disabled=true;
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({audio:{
+      echoCancellation:false,noiseSuppression:false,autoGainControl:false,channelCount:1},video:false});
+    track=stream.getAudioTracks()[0];
+    const st=track.getSettings?track.getSettings():{};
+    ctx=new (window.AudioContext||window.webkitAudioContext)();
+    await ctx.resume();
+    const fault=w=>{micHealthy=false;micReason=w;log('!! mic fault: '+w);paintBadge();};
+    track.onmute=()=>fault('track muted');
+    track.onended=()=>fault('track ended');
+    track.onunmute=()=>{micHealthy=true;micReason='';paintBadge();};
+    setInterval(()=>{ if(!track) return;
+      if(track.muted&&micHealthy) fault('track.muted');
+      if(track.readyState!=='live'&&micHealthy) fault('readyState='+track.readyState); },500);
+    ctx.onstatechange=()=>{ log('AudioContext -> '+ctx.state);
+      if(ctx.state!=='running') ctx.resume().catch(()=>{}); };
+    await ctx.audioWorklet.addModule(URL.createObjectURL(
+      new Blob([$('workletSrc').textContent],{type:'application/javascript'})));
+    node=new AudioWorkletNode(ctx,'engine',{numberOfOutputs:0});
+    node.port.onmessage=e=>{
+      const m=e.data;
+          if(m.type==='level'){ onLevel(m); return; }
+      if(m.type==='frame') onFrame(m);
+    };
+    ctx.createMediaStreamSource(stream).connect(node);
+    const zone=(el,lo,hi)=>{ $(el).style.left=((lo+60)/60*100)+'%';
+                             $(el).style.width=((hi-lo)/60*100)+'%'; };
+    zone('pkZone',PK_LO,PK_HI); zone('rmZone',RM_LO,RM_HI);
+    const row=(k,v)=>'<div class="row"><span class="k">'+k+'</span><span class="v">'+v+'</span></div>';
+    $('setupRows').innerHTML=row('Sample rate',ctx.sampleRate+' Hz')+
+      row('Device',track.label||'not reported')+
+      row('Tracker','Step 0 unchanged: 32 ms / 10 ms / clarity 0.70 / floor +6 dB');
+    $('cardSetup').classList.add('hidden');
+    $('cardMain').classList.remove('hidden');
+    paintTrialBar();
+    log('ready. '+ctx.sampleRate+' Hz. protocol: '+PLAN.length+' trials.');
+    requestAnimationFrame(draw);
+  }catch(e){
+    $('btnStart').disabled=false;
+    $('setupNote').innerHTML='<span class="bad">'+e.name+': '+e.message+'</span>';
+    log('ERROR '+e.name+': '+e.message);
+  }
+};
+/* Input-level meters. Display only — identical semantics to correction.html:
+   peak with 1.2 s hold then 24 dB/s decay, and a 300 ms sliding RMS. */
+function onLevel(m){
+  const now=performance.now();
+  const dt=lastLevelAt?Math.min((now-lastLevelAt)/1000,0.25):2048/ctx.sampleRate;
+  lastLevelAt=now;
+  const pk=m.peak>0?20*Math.log10(m.peak):-99;
+  if(pk>pkHoldDb){ pkHoldDb=pk; pkHoldAt=now; }
+  else if(now-pkHoldAt>HOLD_MS){ pkHoldDb-=DECAY_DB_PER_S*dt; }
+  if(pkHoldDb<-99) pkHoldDb=-99;
+  const ms=m.ms||0;
+  if(!msInit){ msState=ms; msInit=true; }
+  else { msState+=(1-Math.exp(-dt/RMS_TAU_S))*(ms-msState); }
+  const rm=msState>0?10*Math.log10(msState):-99;
+  if(m.peak>0) lastNonZeroAt=now;
+  paintMeter('pkFill','pkLbl',pkHoldDb,PK_LO,PK_HI,PK_WARN);
+  paintMeter('rmFill','rmLbl',rm,RM_LO,RM_HI,null);
+  paintBadge();
+}
+function paintMeter(fillId,lblId,db,lo,hi,warnAbove){
+  const pc=Math.max(0,Math.min(100,(db+60)/60*100));
+  const f=$(fillId);
+  f.style.width=pc+'%';
+  f.style.background = (warnAbove!==null&&db>warnAbove) ? 'var(--bad)'
+                     : (db>=lo&&db<=hi)                 ? 'var(--ok)'
+                     : (db>hi)                          ? 'var(--warn)' : 'var(--signal)';
+  $(lblId).textContent = db>-99 ? db.toFixed(1)+' dB' : '—';
+}
+
+/* Calibration diagnostics. Reports what the baseline was built from and warns
+   when it lands far from the Step 0 reference. It never overrides the measured
+   value — the warning is information, not a correction. */
+function showCalInfo(){
+  if(!calInfo) return;
+  const c=calInfo, off=c.offsetFromRefSt;
+  const far=Math.abs(off)>CAL_WARN_ST;
+  const el=$('calInfo');
+  el.className='guard '+(far?'warn':'ok');
+  el.innerHTML='<b>Calibration:</b> baseline <b>'+c.baselineHz.toFixed(1)+' Hz</b>'+
+    ' · '+c.frames+' of '+c.seen+' frames accepted ('+c.acceptedPct.toFixed(0)+'%)'+
+    ' · spread '+c.iqrSt.toFixed(2)+' st'+
+    ' · level '+(c.rmsDb!==null?c.rmsDb.toFixed(1):'?')+' dBFS'+
+    ' · room floor '+c.roomFloorDb.toFixed(1)+' dBFS'+
+    (far ? '<br><b>Warning:</b> this baseline is '+Math.abs(off).toFixed(1)+
+           ' semitones '+(off<0?'below':'above')+' the Step 0 reference of '+
+           STEP0_REF_HZ+' Hz. The most likely cause is speaking more quietly '+
+           'than in Step 0. The value has NOT been altered — check the level '+
+           'meters and recalibrate if you want a different reference.' : '');
+  el.classList.remove('hidden');
+}
+
+function micReady(){ return micHealthy && (performance.now()-lastNonZeroAt)<1500; }
+function paintBadge(){
+  const b=$('micBadge'); if(!b) return;
+  const live=micReady();
+  b.textContent = live?'MIC LIVE':(micHealthy?'NO INPUT':'MIC FAULT: '+micReason);
+  b.className='micbadge '+(live?'ok':'bad');
+}
+/* The tester starts every trial. Nothing auto-runs back to back, and a
+   departure trial always shows its instructions first. Instruction pacing and
+   fatigue were real confounds in the first Step 1B session. */
+let restPending=false;
+function showReady(){
+  if(trialIdx>=PLAN.length){
+    $('readyCard').classList.add('hidden');
+    $('phaseMsg').textContent='protocol complete — download the session JSON';
+    return;
+  }
+  const p=PLAN[trialIdx];
+  $('readyTitle').textContent='Trial '+(trialIdx+1)+' of '+PLAN.length+' — '+SHAPES[p.shape].label;
+  if(p.role==='departure'){
+    $('readyBody').innerHTML=
+      '<p>This is the <b>departure and recovery</b> trial. Read this before you tap.</p>'+
+      '<ol>'+
+      '<li>Start by following the rising line exactly as in a normal trial.</li>'+
+      '<li>At <b>1.6 seconds</b> the screen shows <span class="big">JUMP UP</span>'+
+        'That is your cue to deliberately sing <b>about 4 to 5 semitones ABOVE</b> the line '+
+        '&mdash; clearly off course, not a small drift.</li>'+
+      '<li>At <b>2.0 seconds</b> it changes to <span class="big">COME BACK</span>'+
+        'Return to the line and settle back onto it. Try not to swoop past it.</li>'+
+      '<li>Keep singing to the end of the course.</li>'+
+      '</ol>'+
+      '<p>If you do not actually jump, the trial is marked <b>invalid execution</b>, '+
+      'is not counted against the engine, and simply repeats.</p>';
+  } else {
+    $('readyBody').innerHTML=
+      '<p>Follow the falling line: hold high for 1 second, glide down over 2 seconds, '+
+      'then hold low for 1 second. <b>4 seconds total.</b></p>'+
+      '<p>Keep the sound going the whole way. If your voice runs out at the bottom, '+
+      'that is exactly what this trial is measuring &mdash; do not force it.</p>';
+  }
+  $('restNote').classList.toggle('hidden',!restPending);
+  $('readyCard').classList.remove('hidden');
+  $('btnGo').classList.add('hidden'); $('btnAgain').classList.add('hidden');
+}
+$('btnReady').onclick=()=>{
+  if(!micReady()){ log('BLOCKED: microphone not delivering audio'); return; }
+  restPending=false;
+  $('readyCard').classList.add('hidden');
+  beginAttempt();
+};
+$('btnGo').onclick=()=>{ if(!micReady()){ log('BLOCKED: microphone not delivering audio'); return; } showReady(); };
+$('btnAgain').onclick=()=>{
+  if(trialIdx>=PLAN.length){ log('protocol complete — download the session JSON'); paintTrialBar(); return; }
+  showReady(); };
+$('btnAbort').onclick=()=>abortAttempt('aborted by user');
+$('btnDump').onclick=()=>{
+  const blob=new Blob([JSON.stringify({version:VERSION,plan:PLAN,
+      shapes:SHAPES,shapes_ms:{rising:5000,falling:4000,level:5000},cueMs:CUE_MS,backMs:BACK_MS,
+      trialsCompleted:trialIdx,sessionFrames:sessionFrames,
+      attempts:attempts},null,1)],
+                      {type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='flight1b_'+new Date().toISOString().replace(/[-:T]/g,'').slice(0,12)+'.json';
+  document.body.appendChild(a); a.click(); a.remove();
+};
+</script>
+</body>
+</html>
