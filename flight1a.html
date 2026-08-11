@@ -30,6 +30,22 @@
   .micbadge.bad{background:rgba(239,106,94,.16);color:var(--bad);border:1px solid var(--bad)}
   canvas{width:100%;height:300px;display:block;background:#0e1319;
     border:1px solid var(--line);border-radius:10px}
+  .meter{position:relative;height:30px;background:#0e1319;border:1px solid var(--line);
+    border-radius:8px;overflow:hidden;margin:6px 0}
+  .meter .fill{position:absolute;left:0;top:0;bottom:0;width:0%;background:var(--signal);
+    transition:width .05s linear}
+  .meter .zone{position:absolute;top:0;bottom:0;border-left:2px solid var(--ok);
+    border-right:2px solid var(--ok);background:rgba(62,201,138,.14)}
+  .meter .lbl{position:absolute;right:8px;top:5px;font-size:13px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .mcap{display:flex;justify-content:space-between;font-size:11px;color:var(--dim);
+    text-transform:uppercase;letter-spacing:.07em;margin-top:10px}
+  .mcap span{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    text-transform:none;letter-spacing:0}
+  .guard{border-radius:8px;padding:12px;margin:12px 0;font-size:13.5px;line-height:1.45}
+  .guard.ok{background:rgba(62,201,138,.12);border:1px solid var(--ok);color:var(--paper)}
+  .guard.warn{background:rgba(232,179,74,.14);border:1px solid var(--warn);color:var(--warn)}
+  .state.NO_VOICE{color:var(--signal)}
   .state{font-size:34px;font-weight:700;text-align:center;margin:14px 0 2px;
     font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:-.02em}
   .state.GOOD{color:var(--ok)} .state.BORDERLINE{color:var(--warn)}
@@ -67,6 +83,17 @@
 
   <div class="card hidden" id="cardMain">
     <div class="micbadge bad" id="micBadge">NO INPUT</div>
+
+    <div class="mcap" style="margin-top:0"><b>Peak</b><span>hold 1.2 s, decay 24 dB/s &middot; guide &minus;24 to &minus;8</span></div>
+    <div class="meter"><div class="fill" id="pkFill"></div><div class="zone" id="pkZone"></div><div class="lbl" id="pkLbl">&mdash;</div></div>
+    <div class="mcap"><b>RMS</b><span>300 ms window &middot; guide &minus;37 to &minus;23</span></div>
+    <div class="meter"><div class="fill" id="rmFill"></div><div class="zone" id="rmZone"></div><div class="lbl" id="rmLbl">&mdash;</div></div>
+    <div class="note" style="margin-bottom:14px"><b>Speak at your normal Step 0 level.</b>
+    These bands are guidance, not targets to hit &mdash; they exist so this session
+    reproduces roughly the level you used during the Step 0 recordings, instead of
+    sitting just above the energy gate. Do not strain to reach the top of a band.</div>
+
+    <div class="guard hidden" id="calInfo"></div>
     <canvas id="cv" width="1400" height="600"></canvas>
     <div class="state IDLE" id="stateBig">&mdash;</div>
     <div class="phase" id="phaseMsg">ready</div>
@@ -113,7 +140,7 @@ class Engine extends AudioWorkletProcessor {
     this.ring = new Float32Array(4096);
     this.pos = 0; this.filled = 0; this.sinceHop = 0;
     this.acc = 0; this.accN = 0;
-    this.peakWin = 0; this.sincePeak = 0; this.recPeakSeen = 0;
+    this.peakWin = 0; this.msAcc = 0; this.msN = 0; this.sincePeak = 0;
     this.lastFrame = -1; this.gaps = 0;
     this.buf = new Float32Array(this.W);
   }
@@ -150,6 +177,7 @@ class Engine extends AudioWorkletProcessor {
     for(let i=0;i<N;i++){
       const s=ch[i], a=s<0?-s:s;
       if(a>this.peakWin) this.peakWin=a;
+      this.msAcc+=s*s; this.msN++;
       this.acc+=s;
       if(++this.accN===this.dec){
         this.ring[this.pos]=this.acc/this.dec;
@@ -173,8 +201,9 @@ class Engine extends AudioWorkletProcessor {
     this.sincePeak+=N;
     if(this.sincePeak>=2048){
       this.sincePeak=0;
-      this.port.postMessage({type:'level', peak:this.peakWin});
-      this.peakWin=0;
+      this.port.postMessage({type:'level', peak:this.peakWin,
+        ms: this.msN? this.msAcc/this.msN : 0});
+      this.peakWin=0; this.msAcc=0; this.msN=0;
     }
     return true;
   }
@@ -225,6 +254,26 @@ const MEDIAN_N=5;
 /* ---- gates, unchanged from Step 0 ---- */
 const CLARITY_GATE=0.70, ENERGY_MARGIN_DB=6;
 
+/* ---- input-level guidance, unchanged from correction.html (A1-derived).
+        DISPLAY ONLY. These bands never touch the energy gate above. ---- */
+const HOLD_MS=1200, DECAY_DB_PER_S=24, RMS_TAU_S=0.30;
+const PK_LO=-24, PK_HI=-8, RM_LO=-37, RM_HI=-23, PK_WARN=-3;
+let pkHoldDb=-99, pkHoldAt=0, msState=0, msInit=false, lastLevelAt=0;
+
+/* ---- calibration sanity reference: the Step 0 A1 baseline was 120.4-122.7 Hz ---- */
+const STEP0_REF_HZ=121.4, CAL_WARN_ST=4.0;
+
+/* ---- latency anchoring ----------------------------------------------------
+   The audio clock does not advance while the main thread is busy, so a
+   latency computed entirely on ctx.currentTime is a constant: it can only
+   ever return the analysis-window offset. Anchoring performance.now() to the
+   audio clock and measuring in wall time captures the delay that clock hides.
+   anchorOff is the RUNNING MINIMUM of (perfNow - audioTime), i.e. the least
+   delayed observation of the relationship between the two clocks; using the
+   minimum means main-thread delay inflates the measured latency rather than
+   the anchor, which is the conservative direction. -------------------------- */
+let anchorOff=null, anchorSeen=0;
+
 /* ---- phases ---- */
 const CAL_ROOM_MS=1000, CAL_VOICE_MS=3000;
 const ACQUIRE_HOLD_MS=300, ACQUIRE_TIMEOUT_MS=25000;
@@ -238,7 +287,8 @@ let ctx,node,stream,track;
 let micHealthy=true, micReason='', lastNonZeroAt=0;
 let phase='IDLE';
 let roomFloorDb=null, baselineHz=null;
-let calBuf=[], phaseStart=0, phaseTimer=null;
+let calBuf=[], calRms=[], calSeen=0, phaseStart=0, phaseTimer=null;
+let calInfo=null;
 let devSeq=[], attempts=[], attemptNo=0;
 let cur=null;                 // latest CourseFrame
 let lastEngine=null;          // latest EngineFrame (dev only)
@@ -341,9 +391,11 @@ function beginAttempt(){
   clearPhaseTimer();
   attemptNo++;
   att={n:attemptNo, started:new Date().toISOString(), transitions:[],
-       latencies:[], frames:0, voicedFrames:0, goodMs:0, gapsAtStart:null,
-       detectOff:[], recoverGood:[]};
-  calBuf=[]; roomFloorDb=null; baselineHz=null;
+       latencies:[], frames:0, voicedFrames:0, goodMs:0, noVoiceMs:0,
+       gapsAtStart:null, detectOff:[], recoverGood:[], cal:null};
+  calBuf=[]; calRms=[]; calSeen=0; calInfo=null; roomFloorDb=null; baselineHz=null;
+  $('calInfo').classList.add('hidden');
+  anchorOff=null; anchorSeen=0;
   devTrail=[];
   $('cardResult').classList.add('hidden');
   $('btnGo').classList.add('hidden'); $('btnAgain').classList.add('hidden');
@@ -357,10 +409,21 @@ function beginAttempt(){
     setPhase('CAL_VOICE','say a comfortable steady "ah"');
     phaseTimer=setTimeout(()=>{
       const f=calBuf.filter(x=>x>0);
-      if(f.length<30){ abortAttempt('calibration failed — no steady voice detected'); return; }
+      if(f.length<30){ abortAttempt('calibration failed — too few voiced frames above the room floor'); return; }
       baselineHz=median(f);
-      log('baseline F0 '+baselineHz.toFixed(1)+' Hz from '+f.length+' voiced frames');
-      calBuf=[];
+      const srt=f.slice().sort((a,b)=>a-b);
+      const q=p=>srt[Math.min(srt.length-1,Math.floor(srt.length*p))];
+      calInfo={ baselineHz:baselineHz, frames:f.length, seen:calSeen,
+        acceptedPct:100*f.length/Math.max(1,calSeen),
+        iqrSt:12*Math.log2(q(0.75)/Math.max(q(0.25),1e-9)),
+        rmsDb: calRms.length? median(calRms) : null,
+        roomFloorDb: roomFloorDb,
+        offsetFromRefSt: 12*Math.log2(baselineHz/STEP0_REF_HZ) };
+      showCalInfo();
+      log('baseline F0 '+baselineHz.toFixed(1)+' Hz from '+f.length+' of '+calSeen+
+          ' frames, spread '+calInfo.iqrSt.toFixed(2)+' st, level '+
+          (calInfo.rmsDb!==null?calInfo.rmsDb.toFixed(1):'?')+' dBFS');
+      calBuf=[]; calRms=[];
       resetMedian(); resetBand(performance.now());
       setPhase('ACQUIRE','find and hold the starting altitude');
       phaseTimer=setTimeout(()=>abortAttempt('could not acquire the starting altitude'),
@@ -417,8 +480,13 @@ function endAttempt(){
     latencyP95Ms: p(0.95)!==null? +p(0.95).toFixed(1):null,
     detectOffMs: att.detectOff.map(v=>+v.toFixed(0)),
     recoverGoodMs: att.recoverGood.map(v=>+v.toFixed(0)),
-    baselineHz:+baselineHz.toFixed(1), roomFloorDb:+roomFloorDb.toFixed(1)
+    baselineHz:+baselineHz.toFixed(1), roomFloorDb:+roomFloorDb.toFixed(1),
+    noVoicePct:+Math.min(100,100*att.noVoiceMs/scoredMs).toFixed(1),
+    latencyMinMs: lat.length? +lat[0].toFixed(1):null,
+    latencySpreadMs: lat.length? +(lat[lat.length-1]-lat[0]).toFixed(1):null,
+    calibration: calInfo
   };
+  att.cal=calInfo;
   attempts.push(att);
   const row=(k,v,c)=>'<div class="row"><span class="k">'+k+'</span><span class="v '+(c||'')+'">'+v+'</span></div>';
   const r=att.result;
@@ -430,6 +498,11 @@ function endAttempt(){
     row('Sound&rarr;state latency, median', (r.latencyMedianMs??'—')+' ms',
         r.latencyMedianMs!=null&&r.latencyMedianMs<=100?'ok':r.latencyMedianMs!=null&&r.latencyMedianMs<=180?'warn':'bad')+
     row('Sound&rarr;state latency, p95', (r.latencyP95Ms??'—')+' ms')+
+    row('Latency min / spread', (r.latencyMinMs??'—')+' / '+(r.latencySpreadMs??'—')+' ms',
+        (r.latencySpreadMs!=null&&r.latencySpreadMs>0.5)?'ok':'bad')+
+    row('Time with NO VOICE', r.noVoicePct+'%', r.noVoicePct<=10?'ok':r.noVoicePct<=25?'warn':'bad')+
+    row('Calibration level', (calInfo&&calInfo.rmsDb!==null?calInfo.rmsDb.toFixed(1):'—')+' dBFS'+
+        (calInfo?' · '+calInfo.frames+' frames · spread '+calInfo.iqrSt.toFixed(2)+' st':''))+
     row('Departure detected in', r.detectOffMs.length? r.detectOffMs.join(', ')+' ms':'—')+
     row('Recovery to GOOD in', r.recoverGoodMs.length? r.recoverGoodMs.join(', ')+' ms':'—')+
     row('Baseline / room floor', r.baselineHz+' Hz / '+r.roomFloorDb+' dBFS');
@@ -443,6 +516,12 @@ function endAttempt(){
 /* ==========================  FRAME HANDLER  ========================== */
 function onFrame(m){
   const nowMs=performance.now();
+  // clock anchor: least-delayed observed offset between wall and audio clocks
+  const off=nowMs - ctx.currentTime*1000;
+  anchorSeen++;
+  if(anchorOff===null || off<anchorOff) anchorOff=off;
+  // wall-clock instant corresponding to the centre of this analysis window
+  const acousticWallMs = m.acousticTime*1000 + (anchorOff===null?0:anchorOff);
   const ef=makeEngineFrame(m);
   ef._gaps=m.gaps;
   lastEngine=ef;
@@ -450,7 +529,11 @@ function onFrame(m){
 
   if(phase==='CAL_ROOM'){ calBuf.push(m.rmsDb); return; }
   if(phase==='CAL_VOICE'){
-    if(m.f0>0 && m.clarity>CLARITY_GATE) calBuf.push(m.f0);
+    // Same voicing rule the live engine uses: clarity AND energy above the
+    // measured room floor. Gate values are unchanged; only this collection
+    // point, which previously used clarity alone, now obeys the same rule.
+    if(ef.voiced){ calBuf.push(m.f0); calRms.push(m.rmsDb); }
+    calSeen++;
     return;
   }
   if(phase!=='ACQUIRE' && phase!=='COUNTDOWN' && phase!=='COURSE') return;
@@ -466,14 +549,20 @@ function onFrame(m){
     att.frames++;
     if(ef.voiced) att.voicedFrames++;
     if(cf.band==='GOOD') att.goodMs+=10;
+    if(cf.reason==='no_voice') att.noVoiceMs+=10;   // reported, never scored
     // Sound -> state latency, measured on EVERY scored frame, not only on
     // transitions, so a clean attempt still yields a measurement. Both times
     // are on the AudioContext clock: window centre to decision.
-    att.latencies.push((ctx.currentTime - ef.acousticTime)*1000);
+    // Captures: analysis-window offset, worklet->main transport, main-thread
+    // scheduling, and comparison/state-machine processing up to this point.
+    // Does NOT capture: physical acoustic input latency ahead of the
+    // AudioContext timestamp (mic, ADC, OS buffering) or display scan-out,
+    // neither of which is measurable from inside the page.
+    att.latencies.push(nowMs - acousticWallMs);
     devTrail.push({t:courseMs, st:ef.semitones, band:cf.band});
     if(cf.changed){
       // sound -> state latency on the SAME clock: acoustic window centre to decision
-      const latMs=(ctx.currentTime - ef.acousticTime)*1000;
+      const latMs=nowMs - acousticWallMs;
       att.transitions.push({tMs:+courseMs.toFixed(0), band:cf.band, latMs:+latMs.toFixed(1)});
       if(cf.band==='OFF_COURSE' && rawCrossAt.off!==null)
         att.detectOff.push(nowMs-rawCrossAt.off);
@@ -526,6 +615,7 @@ function draw(){
   devTrail.forEach(p=>{ if(p.st===null||p.st===undefined) return;
     g.fillStyle = p.band==='GOOD'?'rgba(62,201,138,.55)':
                   p.band==='BORDERLINE'?'rgba(232,179,74,.55)':'rgba(239,106,94,.55)';
+    // (no-voice frames carry no pitch, so they simply leave a gap in the trail)
     g.beginPath(); g.arc(x(p.t),y(p.st),4,0,6.283); g.fill(); });
   // cursor + learner
   if(cur){
@@ -534,7 +624,8 @@ function draw(){
     g.beginPath(); g.moveTo(cx,0); g.lineTo(cx,cv.height); g.stroke();
     const st = lastEngine && lastEngine.semitones!==null ? lastEngine.semitones : null;
     if(st!==null){
-      g.fillStyle = cur.band==='GOOD'?'#3ec98a':cur.band==='BORDERLINE'?'#e8b34a':'#ef6a5e';
+      g.fillStyle = cur.reason==='no_voice' ? '#6ba8ff'
+                  : cur.band==='GOOD'?'#3ec98a':cur.band==='BORDERLINE'?'#e8b34a':'#ef6a5e';
       g.beginPath(); g.arc(cx,y(st),16,0,6.283); g.fill();
       g.strokeStyle='#0e1319'; g.lineWidth=3; g.stroke();
     }
@@ -542,9 +633,20 @@ function draw(){
       g.fillStyle='#6ba8ff'; g.beginPath(); g.arc(x(0),y(START_ST),9,0,6.283); g.fill();
     }
   }
-  const b=cur?cur.band:'IDLE';
-  $('stateBig').textContent = (phase==='ACQUIRE'||phase==='COURSE') ? b : '—';
-  $('stateBig').className='state '+((phase==='ACQUIRE'||phase==='COURSE')?b:'IDLE');
+  // The learner must never be told they are off pitch when the real problem is
+  // absent phonation. The scored band is unchanged; only its presentation
+  // splits OFF_COURSE into two honest cases using CourseFrame.reason.
+  const live=(phase==='ACQUIRE'||phase==='COURSE');
+  let shown='IDLE', label='—';
+  if(live && cur){
+    if(cur.reason==='no_voice'){ shown='NO_VOICE'; label='NO VOICE'; }
+    else { shown=cur.band; label=cur.band.replace('_',' '); }
+  }
+  $('stateBig').textContent=label;
+  $('stateBig').className='state '+shown;
+  $('phaseMsg').textContent = (live && cur && cur.reason==='no_voice')
+    ? 'keep the sound going — the engine has no pitch to follow'
+    : $('phaseMsg').textContent;
   requestAnimationFrame(draw);
 }
 
@@ -595,10 +697,13 @@ $('btnStart').onclick=async()=>{
     node=new AudioWorkletNode(ctx,'engine',{numberOfOutputs:0});
     node.port.onmessage=e=>{
       const m=e.data;
-      if(m.type==='level'){ if(m.peak>0) lastNonZeroAt=performance.now(); paintBadge(); return; }
+          if(m.type==='level'){ onLevel(m); return; }
       if(m.type==='frame') onFrame(m);
     };
     ctx.createMediaStreamSource(stream).connect(node);
+    const zone=(el,lo,hi)=>{ $(el).style.left=((lo+60)/60*100)+'%';
+                             $(el).style.width=((hi-lo)/60*100)+'%'; };
+    zone('pkZone',PK_LO,PK_HI); zone('rmZone',RM_LO,RM_HI);
     const row=(k,v)=>'<div class="row"><span class="k">'+k+'</span><span class="v">'+v+'</span></div>';
     $('setupRows').innerHTML=row('Sample rate',ctx.sampleRate+' Hz')+
       row('Device',track.label||'not reported')+
@@ -613,6 +718,57 @@ $('btnStart').onclick=async()=>{
     log('ERROR '+e.name+': '+e.message);
   }
 };
+/* Input-level meters. Display only — identical semantics to correction.html:
+   peak with 1.2 s hold then 24 dB/s decay, and a 300 ms sliding RMS. */
+function onLevel(m){
+  const now=performance.now();
+  const dt=lastLevelAt?Math.min((now-lastLevelAt)/1000,0.25):2048/ctx.sampleRate;
+  lastLevelAt=now;
+  const pk=m.peak>0?20*Math.log10(m.peak):-99;
+  if(pk>pkHoldDb){ pkHoldDb=pk; pkHoldAt=now; }
+  else if(now-pkHoldAt>HOLD_MS){ pkHoldDb-=DECAY_DB_PER_S*dt; }
+  if(pkHoldDb<-99) pkHoldDb=-99;
+  const ms=m.ms||0;
+  if(!msInit){ msState=ms; msInit=true; }
+  else { msState+=(1-Math.exp(-dt/RMS_TAU_S))*(ms-msState); }
+  const rm=msState>0?10*Math.log10(msState):-99;
+  if(m.peak>0) lastNonZeroAt=now;
+  paintMeter('pkFill','pkLbl',pkHoldDb,PK_LO,PK_HI,PK_WARN);
+  paintMeter('rmFill','rmLbl',rm,RM_LO,RM_HI,null);
+  paintBadge();
+}
+function paintMeter(fillId,lblId,db,lo,hi,warnAbove){
+  const pc=Math.max(0,Math.min(100,(db+60)/60*100));
+  const f=$(fillId);
+  f.style.width=pc+'%';
+  f.style.background = (warnAbove!==null&&db>warnAbove) ? 'var(--bad)'
+                     : (db>=lo&&db<=hi)                 ? 'var(--ok)'
+                     : (db>hi)                          ? 'var(--warn)' : 'var(--signal)';
+  $(lblId).textContent = db>-99 ? db.toFixed(1)+' dB' : '—';
+}
+
+/* Calibration diagnostics. Reports what the baseline was built from and warns
+   when it lands far from the Step 0 reference. It never overrides the measured
+   value — the warning is information, not a correction. */
+function showCalInfo(){
+  if(!calInfo) return;
+  const c=calInfo, off=c.offsetFromRefSt;
+  const far=Math.abs(off)>CAL_WARN_ST;
+  const el=$('calInfo');
+  el.className='guard '+(far?'warn':'ok');
+  el.innerHTML='<b>Calibration:</b> baseline <b>'+c.baselineHz.toFixed(1)+' Hz</b>'+
+    ' · '+c.frames+' of '+c.seen+' frames accepted ('+c.acceptedPct.toFixed(0)+'%)'+
+    ' · spread '+c.iqrSt.toFixed(2)+' st'+
+    ' · level '+(c.rmsDb!==null?c.rmsDb.toFixed(1):'?')+' dBFS'+
+    ' · room floor '+c.roomFloorDb.toFixed(1)+' dBFS'+
+    (far ? '<br><b>Warning:</b> this baseline is '+Math.abs(off).toFixed(1)+
+           ' semitones '+(off<0?'below':'above')+' the Step 0 reference of '+
+           STEP0_REF_HZ+' Hz. The most likely cause is speaking more quietly '+
+           'than in Step 0. The value has NOT been altered — check the level '+
+           'meters and recalibrate if you want a different reference.' : '');
+  el.classList.remove('hidden');
+}
+
 function micReady(){ return micHealthy && (performance.now()-lastNonZeroAt)<1500; }
 function paintBadge(){
   const b=$('micBadge'); if(!b) return;
