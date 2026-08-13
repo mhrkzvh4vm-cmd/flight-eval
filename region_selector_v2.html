@@ -1,0 +1,700 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Pronunciation Region Selector</title>
+<style>
+:root{--ink:#22251F;--paper:#FBFAF5;--bg:#EEF1EA;--line:#D8DCD2;--muted:#6C7266;
+      --green:#4A7A57;--red:#C3402B;--blue:#1F6FB2;--amber:#B98A2E}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font:17px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-text-size-adjust:100%}
+.wrap{max-width:900px;margin:0 auto;padding:14px 16px 60px}
+h1{font-size:19px;margin:0 0 4px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:16px}
+.hint{font-size:15px;color:var(--muted);margin:6px 0 0}
+button{font:inherit;font-weight:600;border-radius:14px;border:2px solid var(--line);
+  background:#fff;color:var(--ink);cursor:pointer;padding:16px 18px;min-height:60px;width:100%;
+  margin-bottom:10px;display:block;text-align:center}
+button:active{transform:scale(.99)}
+button:disabled{opacity:.4}
+button.green{background:var(--green);border-color:var(--green);color:#fff}
+button.red{background:var(--red);border-color:var(--red);color:#fff}
+button.blue{background:var(--blue);border-color:var(--blue);color:#fff}
+button small{display:block;font-weight:400;font-size:13px;opacity:.85;margin-top:3px}
+.row{display:flex;gap:10px}
+.row button{flex:1}
+canvas{width:100%;height:180px;background:#fff;border:1px solid var(--line);
+  border-radius:12px;display:block;touch-action:none}
+#times{font-size:18px;margin:12px 0 2px;font-weight:600}
+#dur{font-size:15px;color:var(--muted)}
+#status{font-size:15px;color:var(--muted);white-space:pre-wrap;margin-top:8px}
+#status.err{color:var(--red);font-weight:600}
+.pill{display:inline-block;padding:4px 12px;border-radius:999px;background:#E6ECE6;
+  color:var(--green);font-size:14px;font-weight:700;margin-left:8px}
+.pill.no{background:#FBE9E5;color:var(--red)}
+textarea{width:100%;font:inherit;padding:12px;border-radius:12px;border:2px solid var(--line);min-height:70px}
+details{margin-top:20px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+summary{cursor:pointer;color:var(--muted);font-size:15px}
+pre{white-space:pre-wrap;font-size:12px;max-height:240px;overflow:auto}
+input[type=file]{font:inherit;padding:10px;border:2px dashed var(--line);border-radius:12px;width:100%;background:#fff}
+.hidden{display:none}
+.propose{display:none;margin:10px 0;padding:10px 14px;border-radius:12px;font-size:15px;
+  background:#E9EFF7;color:#1F4A78;border:1px solid #1F6FB2}
+.propose.show{display:block}
+.propose.adjusted{background:#FBF3E2;color:#6B5312;border-color:#B98A2E}
+.propose.saved{background:#E8F2E9;color:#2E5A39;border-color:#4A7A57}
+.warnbox{font-size:14px;color:#6B5312}
+.warnbox p{margin:6px 0;padding:8px 12px;background:#FFF8E7;border:1px solid #E0D3A8;border-radius:10px}
+.step{font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 6px}
+</style></head>
+<body><div class="wrap">
+
+<div class="card" id="loadCard">
+  <h1>Pronunciation Region Selector</h1>
+  <p class="hint">Choose the recordings you want to review. Nothing is uploaded — everything stays on this device, and the original recordings are never changed.</p>
+  <p><input type="file" id="picker" accept=".wav,audio/wav" multiple></p>
+  <div id="status">No recordings loaded yet.</div>
+</div>
+
+<div class="card hidden" id="mainCard">
+  <p class="step">Recording <span id="itemNo">1 of 1</span></p>
+  <h1 id="fname">—</h1>
+  <p class="hint" id="listenHint">Listen first. Then mark where the complete pronunciation begins and ends.</p>
+  <div id="propBadge" class="propose">Automatic starting selection — listen and adjust if needed</div>
+  <div id="warnBox" class="warnbox"></div>
+
+  <canvas id="wave"></canvas>
+  <div id="times">—</div>
+  <div id="dur">—</div>
+
+  <button class="blue" id="playAll">▶ Hear the whole recording</button>
+
+  <p class="step" style="margin-top:18px">Which edge are you moving?</p>
+  <div class="row">
+    <button id="pickStart">Start</button>
+    <button id="pickEnd">End</button>
+  </div>
+  <div class="row">
+    <button id="m50">−50 ms</button>
+    <button id="m10">−10 ms</button>
+    <button id="p10">+10 ms</button>
+    <button id="p50">+50 ms</button>
+  </div>
+  <p class="hint">You can also drag the two edges on the picture above, but the buttons are the precise way.</p>
+
+  <p class="step" style="margin-top:18px">Check what you have chosen</p>
+  <button id="prevSel">▶ Preview selection<small>Exactly what will be analysed</small></button>
+  <button id="prevNat">▶ Preview naturally<small>Adds a little sound before and after, so you can hear whether the pronunciation is complete</small></button>
+
+  <p class="step" style="margin-top:18px">Your decision</p>
+  <button class="green" id="accept">✓ This pronunciation is usable</button>
+  <button id="reset">↺ Reset selection<small>Back to the automatic starting selection</small></button>
+  <button class="red" id="reject">✕ This recording is not usable</button>
+
+  <p style="margin-top:6px"><button id="whole" style="min-height:44px;font-weight:400;font-size:15px;color:#6C7266">Select whole recording</button></p>
+  <p class="step" style="margin-top:14px">Note (optional)</p>
+  <textarea id="note" placeholder="Anything you want to say about this recording"></textarea>
+</div>
+
+<div class="card hidden" id="verifyCard">
+  <h1>Saved selection</h1>
+  <p class="hint">Does this contain the complete usable pronunciation?</p>
+  <div id="verifyTimes" style="font-size:18px;font-weight:600;margin:10px 0"></div>
+  <button class="blue" id="verifyPlay">▶ Hear it again</button>
+  <button class="green" id="verifyYes">Yes, continue</button>
+  <button id="verifyAdjust">Adjust it</button>
+</div>
+
+<div class="card hidden" id="doneCard">
+  <h1>All recordings reviewed</h1>
+  <p class="hint" id="doneSummary"></p>
+  <p class="hint"><label><input type="checkbox" id="inclSrc" style="width:auto;min-height:0;transform:scale(1.4);margin-right:10px">Include original source WAVs in the ZIP</label></p>
+  <button class="green" id="exportZip">⬇ Export selections (ZIP: audio + manifest)</button>
+  <button id="exportJson">⬇ Export decisions only (JSON)</button>
+  <button id="backToList">← Back to the recordings</button>
+</div>
+
+<div class="card hidden" id="navCard">
+  <div class="row">
+    <button id="prevItem">← Previous</button>
+    <button id="nextItem">Next →</button>
+  </div>
+  <button id="finish">Finish and export</button>
+  <div id="progress" class="hint"></div>
+</div>
+
+<details id="dev">
+  <summary>Developer diagnostics</summary>
+  <pre id="devlog">(nothing yet)</pre>
+</details>
+
+</div>
+<script>
+"use strict";
+var VERSION = "region-selector-2.0";
+var SCHEMA  = "region-selection-2";
+var ALGO_VERSION = "stageA-proposal-1.0";
+
+/* ============================ PROPOSAL CONFIG ============================
+   Every threshold used by the automatic proposal lives here and nowhere else.
+   These are the validated Version 1 values; they were not tuned against the
+   review corpus. Boundaries are found from ENERGY ONLY — no pitch, no voicing. */
+var PROPOSAL_CONFIG = {
+  frameMs: 25,                    // analysis frame length for the RMS envelope
+  hopMs: 5,                       // step between frames
+  noiseFloorLeadInMs: 400,        // how much of the opening is treated as background
+  noiseFloorPercentile: 20,       // robust low percentile of lead-in level = the floor
+  activityEnterDbAboveFloor: 10,  // level that starts "speech is happening"
+  activityExitDbAboveFloor: 6,    // lower level that ends it (hysteresis)
+  activityEnterHoldMs: 30,        // must stay above the enter level this long
+  activityExitHoldMs: 50,         // must stay below the exit level this long
+  mergeGapMs: 250,                // internal quiet stretches shorter than this stay inside
+  separateEventGapMs: 350,        // a bridged gap longer than this is flagged, not assumed
+  competingRegionDurationRatio: 0.30, // another block this big => "maybe two pronunciations"
+  startWalkBackDbAboveFloor: 3,   // faint-onset threshold when walking back from the body
+  startWalkBackMaxMs: 300,        // how far back the search may go
+  startPaddingMs: 10,             // outward safety padding at the start
+  endBelowFloorDb: 4,             // level the tail must fall below to be "finished"
+  endBelowFloorHoldMs: 60,        // and stay below for this long
+  endPaddingMs: 20,               // outward safety padding at the end
+  minRegionMs: 250,               // shorter than this => warn
+  maxRegionMs: 1800,              // longer than this => warn
+  nearFileEndWarningMs: 150,      // proposal ending this close to the file end => warn
+  leadInSpreadWarnDb: 12,         // uneven lead-in => warn
+  lowSnrWarnDb: 15                // peak barely above floor => warn
+};
+
+/* Rounding policy: every boundary is snapped to the NEAREST WHOLE SAMPLE at the
+   source sample rate. The same rounded sample index is used for playback, for the
+   exported WAV, and for the numbers written into the manifest, so what the
+   reviewer hears is exactly what is exported and exactly what is recorded. */
+function snap(t, rate){ return Math.round(t * rate) / rate; }
+
+function proposeRegion(samples, rate, cfg){
+  cfg = cfg || PROPOSAL_CONFIG;
+  var warn = [], n = samples.length, dur = n / rate;
+  var hop = Math.max(1, Math.round(cfg.hopMs/1000*rate));
+  var fl  = Math.max(2, Math.round(cfg.frameMs/1000*rate));
+  if (n < fl) return { start:0, end:dur, warnings:['This recording is very short.'] };
+  /* Stage 1 — short-time RMS envelope in dB (zero-safe) */
+  var env = [], tmid = [];
+  for (var st = 0; st + fl <= n; st += hop){
+    var acc = 0;
+    for (var i = st; i < st + fl; i++){ acc += samples[i]*samples[i]; }
+    env.push(20*Math.log(Math.max(Math.sqrt(acc/fl), 1e-10))/Math.LN10);
+    tmid.push((st + fl/2)/rate);
+  }
+  if (env.length < 4) return { start:0, end:dur, warnings:['Recording too short to analyse.'] };
+  /* Stage 0 — robust noise floor from the lead-in */
+  var leadN = Math.floor(cfg.noiseFloorLeadInMs/cfg.hopMs), lead;
+  if (leadN < 4){ lead = env.slice(0, Math.max(4, Math.floor(env.length/5)));
+    warn.push('This recording has very little silence at the start, so the background level is only an estimate.'); }
+  else lead = env.slice(0, Math.min(leadN, env.length));
+  function pct(arr, p){ var a = arr.slice().sort(function(x,y){return x-y;});
+    return a[Math.min(a.length-1, Math.max(0, Math.floor(p/100*(a.length-1))))]; }
+  var floor = pct(lead, cfg.noiseFloorPercentile);
+  if (pct(lead,80) - pct(lead,20) > cfg.leadInSpreadWarnDb)
+    warn.push('The background sound before speech is uneven, so the start may need checking.');
+  var peak = Math.max.apply(null, env);
+  if (peak - floor < cfg.lowSnrWarnDb)
+    warn.push('This recording is quiet compared with its background noise.');
+  /* Stage 2 — hysteresis activity mask */
+  var hi = floor + cfg.activityEnterDbAboveFloor, lo = floor + cfg.activityExitDbAboveFloor;
+  var hIn = Math.max(1, Math.round(cfg.activityEnterHoldMs/cfg.hopMs));
+  var hOut = Math.max(1, Math.round(cfg.activityExitHoldMs/cfg.hopMs));
+  var regs = [], inside = false, rIn = 0, rOut = 0, cur = 0;
+  for (var k = 0; k < env.length; k++){
+    if (!inside){ rIn = (env[k] >= hi) ? rIn+1 : 0;
+      if (rIn >= hIn){ inside = true; cur = k - rIn + 1; rOut = 0; } }
+    else { rOut = (env[k] < lo) ? rOut+1 : 0;
+      if (rOut >= hOut){ inside = false; regs.push([cur, k - rOut + 1]); rIn = 0; } }
+  }
+  if (inside) regs.push([cur, env.length-1]);
+  if (!regs.length){ warn.push('No clear speech was found, so the whole recording is selected.');
+    return { start:0, end:dur, warnings:warn }; }
+  /* Stage 3 — merge internal quiet stretches */
+  var mg = Math.round(cfg.mergeGapMs/cfg.hopMs), amb = Math.round(cfg.separateEventGapMs/cfg.hopMs);
+  var merged = [regs[0].slice()], ambiguous = false;
+  for (var r = 1; r < regs.length; r++){
+    var gap = regs[r][0] - merged[merged.length-1][1];
+    if (gap <= mg){ if (gap > amb) ambiguous = true; merged[merged.length-1][1] = regs[r][1]; }
+    else merged.push(regs[r].slice());
+  }
+  if (ambiguous) warn.push('There is a long quiet stretch inside this recording — check whether it is one pronunciation or two.');
+  /* Stage 4 — principal event (the block containing the loudest moment) */
+  var pk = 0; for (var q = 1; q < env.length; q++) if (env[q] > env[pk]) pk = q;
+  var principal = null;
+  for (var m = 0; m < merged.length; m++) if (merged[m][0] <= pk && pk <= merged[m][1]) principal = merged[m];
+  if (!principal){ principal = merged[0];
+    for (var m2 = 1; m2 < merged.length; m2++)
+      if (merged[m2][1]-merged[m2][0] > principal[1]-principal[0]) principal = merged[m2]; }
+  var pdur = principal[1] - principal[0];
+  for (var m3 = 0; m3 < merged.length; m3++){
+    if (merged[m3] !== principal && (merged[m3][1]-merged[m3][0]) > cfg.competingRegionDurationRatio*pdur){
+      warn.push('This recording may contain more than one pronunciation.'); break; } }
+  /* Stage 5 — start refinement: walk back toward the faintest onset evidence */
+  var thrS = floor + cfg.startWalkBackDbAboveFloor;
+  var back = Math.round(cfg.startWalkBackMaxMs/cfg.hopMs);
+  var i2 = principal[0], lim = Math.max(0, principal[0]-back);
+  while (i2 > lim && env[i2-1] >= thrS) i2--;
+  var start = Math.max(0, tmid[i2] - fl/2/rate - cfg.startPaddingMs/1000);
+  /* Stage 6 — end refinement: deliberately generous (zero truncations beats tightness) */
+  var thrE = floor + cfg.endBelowFloorDb;
+  var need = Math.max(1, Math.round(cfg.endBelowFloorHoldMs/cfg.hopMs));
+  var j = principal[1], below = 0;
+  while (j < env.length-1){ j++; below = (env[j] < thrE) ? below+1 : 0; if (below >= need) break; }
+  var endI = (below >= need) ? (j - below) : (env.length-1);
+  var end = Math.min(dur, tmid[endI] + fl/2/rate + cfg.endPaddingMs/1000);
+  if (end <= start) end = Math.min(dur, start + cfg.minRegionMs/1000);
+  var durMs = (end-start)*1000;
+  if (durMs < cfg.minRegionMs) warn.push('The selected part is shorter than usual — check that the whole pronunciation is included.');
+  if (durMs > cfg.maxRegionMs) warn.push('The selected part is longer than usual — check that it is one pronunciation.');
+  if ((dur-end)*1000 < cfg.nearFileEndWarningMs) warn.push('The selection ends very close to the end of the recording.');
+  return { start: snap(start, rate), end: snap(end, rate), warnings: warn };
+}
+
+async function sha256Hex(buf){
+  try {
+    var d = await crypto.subtle.digest('SHA-256', buf);
+    return Array.prototype.map.call(new Uint8Array(d), function(b){
+      return ('0'+b.toString(16)).slice(-2); }).join('');
+  } catch(e){ return null; }
+}
+var CONTEXT_S = 0.125, MIN_SEL_S = 0.005;
+var items = [], idx = 0, decisions = {};
+var active = 'start';
+var ctxA = null, srcNode = null, rafId = null, playFrom = 0, playTo = 0, playStart = 0;
+var dragging = null;
+
+function $(id){ return document.getElementById(id); }
+function say(m, err){ var s = $('status'); s.textContent = m; s.className = err ? 'err' : ''; }
+function dev(m){ var d = $('devlog'); d.textContent = (d.textContent === '(nothing yet)' ? '' : d.textContent + '\n') + m; }
+window.onerror = function(m,s,l){ say('Problem: ' + m + ' (line ' + l + ')', true); dev('ERROR ' + m + ' @' + l); };
+
+/* ---------------------------------------------------------- WAV decoding */
+function parseWav(buf){
+  var v = new DataView(buf);
+  if (v.byteLength < 44) throw new Error('file too small to be a WAV');
+  function tag(o){ return String.fromCharCode(v.getUint8(o),v.getUint8(o+1),v.getUint8(o+2),v.getUint8(o+3)); }
+  if (tag(0) !== 'RIFF' || tag(8) !== 'WAVE') throw new Error('not a RIFF/WAVE file');
+  var p = 12, fmt = null, dataOff = -1, dataLen = 0;
+  while (p + 8 <= v.byteLength){
+    var id = tag(p), sz = v.getUint32(p+4, true);
+    if (id === 'fmt ') fmt = { format: v.getUint16(p+8,true), ch: v.getUint16(p+10,true),
+                               rate: v.getUint32(p+12,true), bits: v.getUint16(p+22,true) };
+    else if (id === 'data'){ dataOff = p + 8; dataLen = sz; }
+    p += 8 + sz + (sz % 2);
+  }
+  if (!fmt || dataOff < 0) throw new Error('WAV is missing fmt or data');
+  if (fmt.format !== 1 || fmt.bits !== 16) throw new Error('only 16-bit PCM WAV is supported here');
+  var n = Math.floor(Math.min(dataLen, v.byteLength - dataOff) / 2 / fmt.ch);
+  var out = new Float32Array(n);
+  for (var i = 0; i < n; i++) out[i] = v.getInt16(dataOff + i*2*fmt.ch, true) / 32768;
+  if (n === 0) throw new Error('WAV contains no audio samples');
+  return { samples: out, rate: fmt.rate, channels: fmt.ch, bits: fmt.bits };
+}
+
+/* ------------------------------------------------------------- file load */
+$('picker').addEventListener('change', function(ev){
+  var files = Array.prototype.slice.call(ev.target.files || []);
+  if (!files.length){ say('No recordings selected.', true); return; }
+  items = []; decisions = {}; idx = 0;
+  var pending = files.length, notes = [];
+  files.forEach(function(f){
+    var rd = new FileReader();
+    rd.onload = function(){
+      try {
+        var w = parseWav(rd.result);
+        var dur = w.samples.length / w.rate;
+        var pr = proposeRegion(w.samples, w.rate, PROPOSAL_CONFIG);
+        var it = { name: f.name, audio: w, dur: dur, raw: rd.result,
+                   start: pr.start, end: pr.end,
+                   propStart: pr.start, propEnd: pr.end, warnings: pr.warnings,
+                   touchedStart: false, touchedEnd: false, sha: null };
+        items.push(it);
+        sha256Hex(rd.result).then(function(h){ it.sha = h; });
+        notes.push(f.name + ' — ' + (w.samples.length / w.rate).toFixed(2) + ' s, ' + w.rate + ' Hz');
+      } catch(e){ notes.push('SKIPPED ' + f.name + ' — ' + e.message); dev('skip ' + f.name + ': ' + e.message); }
+      if (--pending === 0) ready(notes);
+    };
+    rd.onerror = function(){ notes.push('COULD NOT READ ' + f.name); if (--pending === 0) ready(notes); };
+    rd.readAsArrayBuffer(f);
+  });
+});
+
+function ready(notes){
+  say(notes.join('\n'), items.length === 0);
+  if (!items.length) return;
+  items.sort(function(a,b){ return a.name < b.name ? -1 : 1; });
+  items.forEach(function(it){ it.start = 0; it.end = it.dur; });
+  $('mainCard').classList.remove('hidden');
+  $('navCard').classList.remove('hidden');
+  show(0);
+}
+
+/* ------------------------------------------------------------ navigation */
+function show(i){
+  stop();
+  idx = Math.max(0, Math.min(items.length - 1, i));
+  var it = items[idx];
+  $('itemNo').textContent = (idx+1) + ' of ' + items.length;
+  $('fname').textContent = it.name;
+  $('note').value = (decisions[it.name] && decisions[it.name].note) || '';
+  $('verifyCard').classList.add('hidden');
+  $('doneCard').classList.add('hidden');
+  $('mainCard').classList.remove('hidden');
+  setActive('start');
+  var badge = $('propBadge');
+  badge.className = 'propose show' +
+    (decisions[it.name] ? ' saved' : ((it.touchedStart || it.touchedEnd) ? ' adjusted' : ''));
+  badge.textContent = decisions[it.name] ? 'Saved'
+    : ((it.touchedStart || it.touchedEnd) ? 'Adjusted by you'
+       : 'Automatic starting selection — listen and adjust if needed');
+  var wb = $('warnBox'); wb.innerHTML = '';
+  (it.warnings || []).forEach(function(w){
+    var p = document.createElement('p'); p.textContent = w; wb.appendChild(p); });
+  updateTimes(); drawWave();
+  var d = decisions[it.name];
+  $('progress').innerHTML = Object.keys(decisions).length + ' of ' + items.length + ' decided' +
+    (d ? ('<span class="pill' + (d.decision === 'usable' ? '' : ' no') + '">' +
+          (d.decision === 'usable' ? 'marked usable' : 'not usable') + '</span>') : '');
+}
+$('prevItem').addEventListener('click', function(){ show(idx-1); });
+$('nextItem').addEventListener('click', function(){ show(idx+1); });
+$('finish').addEventListener('click', function(){
+  stop();
+  $('mainCard').classList.add('hidden'); $('verifyCard').classList.add('hidden');
+  var u = 0, n = 0;
+  Object.keys(decisions).forEach(function(k){ decisions[k].decision === 'usable' ? u++ : n++; });
+  $('doneSummary').textContent = u + ' marked usable, ' + n + ' marked not usable, ' +
+    (items.length - u - n) + ' not yet decided.';
+  $('doneCard').classList.remove('hidden');
+});
+$('backToList').addEventListener('click', function(){ $('doneCard').classList.add('hidden'); show(idx); });
+
+/* -------------------------------------------------------------- boundaries */
+function setActive(w){
+  active = w;
+  $('pickStart').className = (w === 'start') ? 'blue' : '';
+  $('pickEnd').className   = (w === 'end')   ? 'blue' : '';
+}
+$('pickStart').addEventListener('click', function(){ setActive('start'); });
+$('pickEnd').addEventListener('click', function(){ setActive('end'); });
+
+function nudge(ms){
+  var it = items[idx]; if (!it) return;
+  var d = ms / 1000;
+  if (active === 'start'){ it.start = snap(Math.max(0, Math.min(it.end - MIN_SEL_S, it.start + d)), it.audio.rate); }
+  else                    { it.end   = snap(Math.min(it.dur, Math.max(it.start + MIN_SEL_S, it.end + d)), it.audio.rate); }
+  markAdjusted(active); updateTimes(); drawWave();
+}
+$('m50').addEventListener('click', function(){ nudge(-50); });
+$('m10').addEventListener('click', function(){ nudge(-10); });
+$('p10').addEventListener('click', function(){ nudge(10); });
+$('p50').addEventListener('click', function(){ nudge(50); });
+
+function markAdjusted(which){
+  var it = items[idx]; if (!it) return;
+  if (which === 'start') it.touchedStart = true; else it.touchedEnd = true;
+  var b = $('propBadge');
+  if (b.className.indexOf('saved') < 0){
+    b.className = 'propose show adjusted'; b.textContent = 'Adjusted by you'; }
+}
+function updateTimes(){
+  var it = items[idx]; if (!it) return;
+  $('times').textContent = 'Starts at ' + it.start.toFixed(3) + ' s   ·   ends at ' + it.end.toFixed(3) + ' s';
+  $('dur').textContent = 'Selected length: ' + Math.round((it.end - it.start) * 1000) +
+    ' ms   (whole recording is ' + Math.round(it.dur * 1000) + ' ms)';
+}
+
+/* ------------------------------------------------------------- waveform */
+function drawWave(playT){
+  var it = items[idx]; if (!it) return;
+  var cv = $('wave'), W = (cv.clientWidth || 800) * 2, H = 360;
+  cv.width = W; cv.height = H;
+  var c = cv.getContext('2d');
+  c.clearRect(0,0,W,H);
+  var s = it.audio.samples, n = s.length, mid = H/2;
+  var X = function(t){ return (t / it.dur) * W; };
+
+  // outside-selection shading
+  c.fillStyle = '#EFEFEC';
+  c.fillRect(0, 0, X(it.start), H);
+  c.fillRect(X(it.end), 0, W - X(it.end), H);
+
+  // waveform
+  c.strokeStyle = '#8C948A'; c.lineWidth = 1;
+  c.beginPath();
+  var step = Math.max(1, Math.floor(n / W));
+  for (var x = 0; x < W; x++){
+    var i0 = Math.floor(x / W * n), lo = 0, hi = 0;
+    for (var k = 0; k < step; k++){
+      var vv = s[i0 + k] || 0;
+      if (vv < lo) lo = vv; if (vv > hi) hi = vv;
+    }
+    c.moveTo(x, mid - hi * mid * 0.92);
+    c.lineTo(x, mid - lo * mid * 0.92);
+  }
+  c.stroke();
+
+  // selection edges
+  [['start', it.start], ['end', it.end]].forEach(function(p){
+    var xx = X(p[1]);
+    c.strokeStyle = (active === p[0]) ? '#1F6FB2' : '#4A7A57';
+    c.lineWidth = (active === p[0]) ? 8 : 5;
+    c.beginPath(); c.moveTo(xx, 0); c.lineTo(xx, H); c.stroke();
+    c.fillStyle = c.strokeStyle;
+    c.beginPath(); c.arc(xx, 26, 22, 0, 6.3); c.fill();
+    c.fillStyle = '#fff'; c.font = 'bold 22px sans-serif'; c.textAlign = 'center';
+    c.fillText(p[0] === 'start' ? 'S' : 'E', xx, 34);
+    c.textAlign = 'start';
+  });
+
+  if (playT != null){
+    var px = X(playT);
+    c.strokeStyle = '#C3402B'; c.lineWidth = 5;
+    c.beginPath(); c.moveTo(px, 0); c.lineTo(px, H); c.stroke();
+  }
+}
+window.addEventListener('resize', function(){ drawWave(); });
+
+/* dragging the handles (optional; buttons remain the precise route) */
+(function(){
+  var cv = $('wave');
+  function tAt(e){
+    var it = items[idx], r = cv.getBoundingClientRect();
+    return Math.max(0, Math.min(it.dur, (e.clientX - r.left) / (r.width || 1) * it.dur));
+  }
+  cv.addEventListener('pointerdown', function(e){
+    var it = items[idx]; if (!it) return;
+    var t = tAt(e), ds = Math.abs(t - it.start), de = Math.abs(t - it.end);
+    var tol = it.dur * 0.06;
+    if (Math.min(ds, de) > tol) return;          // ignore taps away from a handle
+    dragging = (ds <= de) ? 'start' : 'end';
+    setActive(dragging);
+    e.preventDefault();
+    if (cv.setPointerCapture) { try { cv.setPointerCapture(e.pointerId); } catch(_){} }
+  });
+  cv.addEventListener('pointermove', function(e){
+    if (!dragging) return;
+    e.preventDefault();
+    var it = items[idx], t = tAt(e);
+    if (dragging === 'start') it.start = Math.min(t, it.end - MIN_SEL_S);
+    else it.end = Math.max(t, it.start + MIN_SEL_S);
+    it.start = snap(Math.max(0, it.start), it.audio.rate);
+    it.end = snap(Math.min(it.dur, it.end), it.audio.rate);
+    markAdjusted(dragging); updateTimes(); drawWave();
+  });
+  function up(){ dragging = null; }
+  cv.addEventListener('pointerup', up);
+  cv.addEventListener('pointercancel', up);
+})();
+
+/* -------------------------------------------------------------- playback */
+function actx(){
+  if (!ctxA) ctxA = new (window.AudioContext || window.webkitAudioContext)();
+  if (ctxA.state === 'suspended') ctxA.resume();
+  return ctxA;
+}
+function stop(){
+  if (srcNode){ try { srcNode.stop(); } catch(_){} srcNode = null; }
+  if (rafId){ cancelAnimationFrame(rafId); rafId = null; }
+  drawWave();
+}
+function play(from, to){
+  var it = items[idx]; if (!it) return;
+  stop();
+  from = Math.max(0, from); to = Math.min(it.dur, to);
+  if (to - from < 0.001){ say('That selection is too short to hear.', true); return; }
+  var a = actx();
+  var buf = a.createBuffer(1, it.audio.samples.length, it.audio.rate);
+  buf.copyToChannel ? buf.copyToChannel(it.audio.samples, 0)
+                    : buf.getChannelData(0).set(it.audio.samples);
+  srcNode = a.createBufferSource();
+  srcNode.buffer = buf; srcNode.connect(a.destination);
+  playFrom = from; playTo = to; playStart = a.currentTime;
+  srcNode.start(0, from, to - from);
+  var tick = function(){
+    var el = actx().currentTime - playStart;
+    var t = playFrom + el;
+    if (t >= playTo){ stop(); return; }
+    drawWave(t);
+    rafId = requestAnimationFrame(tick);
+  };
+  rafId = requestAnimationFrame(tick);
+}
+$('playAll').addEventListener('click', function(){ var it = items[idx]; play(0, it.dur); });
+$('prevSel').addEventListener('click', function(){ var it = items[idx]; play(it.start, it.end); });
+$('prevNat').addEventListener('click', function(){
+  var it = items[idx]; play(it.start - CONTEXT_S, it.end + CONTEXT_S); });
+
+/* -------------------------------------------------------------- decisions */
+function saveDecision(kind){
+  var it = items[idx];
+  var rate = it.audio.rate;
+  var fs = snap(it.start, rate), fe = snap(it.end, rate);
+  it.start = fs; it.end = fe;
+  decisions[it.name] = {
+    /* ---- existing v1 fields, unchanged ---- */
+    source_file: it.name, decision: kind,
+    start_s: kind === 'usable' ? +fs.toFixed(6) : null,
+    end_s:   kind === 'usable' ? +fe.toFixed(6) : null,
+    duration_ms: kind === 'usable' ? Math.round((fe - fs) * 1000) : null,
+    recording_duration_ms: Math.round(it.dur * 1000),
+    removed_from_start_ms: kind === 'usable' ? Math.round(fs * 1000) : null,
+    removed_from_end_ms:   kind === 'usable' ? Math.round((it.dur - fe) * 1000) : null,
+    sample_rate: rate,
+    note: $('note').value || '',
+    timestamp: new Date().toISOString(),
+    tool_version: VERSION, schema: SCHEMA,
+    /* ---- v2 additions ---- */
+    source_sha256: it.sha,
+    start_sample: kind === 'usable' ? Math.round(fs * rate) : null,
+    end_sample:   kind === 'usable' ? Math.round(fe * rate) : null,
+    proposed_start_s: +it.propStart.toFixed(6),
+    proposed_end_s: +it.propEnd.toFixed(6),
+    proposed_duration_ms: Math.round((it.propEnd - it.propStart) * 1000),
+    final_start_s: kind === 'usable' ? +fs.toFixed(6) : null,
+    final_end_s:   kind === 'usable' ? +fe.toFixed(6) : null,
+    final_duration_ms: kind === 'usable' ? Math.round((fe - fs) * 1000) : null,
+    /* sign convention: final minus proposed. positive = reviewer moved it LATER,
+       negative = reviewer moved it EARLIER. */
+    start_adjustment_ms: kind === 'usable' ? +(((fs - it.propStart) * 1000).toFixed(1)) : null,
+    end_adjustment_ms:   kind === 'usable' ? +(((fe - it.propEnd) * 1000).toFixed(1)) : null,
+    reviewer_adjusted_start: !!it.touchedStart,
+    reviewer_adjusted_end: !!it.touchedEnd,
+    proposal_warnings: (it.warnings || []).slice(),
+    proposal_algorithm_version: ALGO_VERSION,
+    proposal_config: PROPOSAL_CONFIG
+  };
+  dev('saved ' + it.name + ' → ' + kind);
+}
+$('accept').addEventListener('click', function(){
+  var it = items[idx];
+  saveDecision('usable');
+  $('verifyTimes').textContent = Math.round((it.end - it.start) * 1000) + ' ms  (' +
+    it.start.toFixed(3) + ' s → ' + it.end.toFixed(3) + ' s)';
+  var b = $('propBadge'); b.className = 'propose show saved'; b.textContent = 'Saved';
+  $('mainCard').classList.add('hidden');
+  $('verifyCard').classList.remove('hidden');
+  play(it.start, it.end);
+});
+$('reject').addEventListener('click', function(){
+  saveDecision('not_usable'); stop();
+  if (idx < items.length - 1) show(idx + 1); else show(idx);
+});
+$('reset').addEventListener('click', function(){
+  var it = items[idx];
+  it.start = it.propStart; it.end = it.propEnd;
+  it.touchedStart = it.touchedEnd = false;
+  var b = $('propBadge'); b.className = 'propose show';
+  b.textContent = 'Automatic starting selection — listen and adjust if needed';
+  setActive('start'); updateTimes(); drawWave();
+});
+$('whole').addEventListener('click', function(){
+  var it = items[idx]; it.start = 0; it.end = it.dur;
+  markAdjusted('start'); markAdjusted('end'); setActive('start'); updateTimes(); drawWave();
+});
+$('verifyPlay').addEventListener('click', function(){ var it = items[idx]; play(it.start, it.end); });
+$('verifyYes').addEventListener('click', function(){
+  stop();
+  if (idx < items.length - 1) show(idx + 1);
+  else $('finish').click();
+});
+$('verifyAdjust').addEventListener('click', function(){
+  stop(); $('verifyCard').classList.add('hidden'); $('mainCard').classList.remove('hidden'); drawWave();
+});
+
+/* ---------------------------------------------------------------- export */
+function encodeWav(samples, rate){
+  var n = samples.length, b = new ArrayBuffer(44 + n*2), v = new DataView(b);
+  function ws(o,s){ for (var i=0;i<s.length;i++) v.setUint8(o+i, s.charCodeAt(i)); }
+  ws(0,'RIFF'); v.setUint32(4, 36+n*2, true); ws(8,'WAVE'); ws(12,'fmt ');
+  v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,rate,true); v.setUint32(28,rate*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true);
+  ws(36,'data'); v.setUint32(40, n*2, true);
+  for (var i=0;i<n;i++){ var s = Math.max(-1, Math.min(1, samples[i]));
+    v.setInt16(44+i*2, s < 0 ? s*0x8000 : s*0x7FFF, true); }
+  return new Uint8Array(b);
+}
+var CRC = (function(){ var t = new Uint32Array(256);
+  for (var i=0;i<256;i++){ var c=i; for (var k=0;k<8;k++) c = (c&1) ? (0xEDB88320^(c>>>1)) : (c>>>1); t[i]=c; }
+  return t; })();
+function crc32(u8){ var c = 0xFFFFFFFF;
+  for (var i=0;i<u8.length;i++) c = CRC[(c ^ u8[i]) & 0xFF] ^ (c>>>8);
+  return (c ^ 0xFFFFFFFF) >>> 0; }
+function zip(files){
+  var enc = new TextEncoder(), now = new Date();
+  var dt = ((now.getFullYear()-1980)<<9 | (now.getMonth()+1)<<5 | now.getDate()) & 0xFFFF;
+  var tm = ((now.getHours()<<11) | (now.getMinutes()<<5) | (now.getSeconds()>>1)) & 0xFFFF;
+  var es = files.map(function(f){ return { name: enc.encode(f.name), data: f.data, crc: crc32(f.data), off: 0 }; });
+  var size = 0, cd = 0;
+  es.forEach(function(e){ size += 30 + e.name.length + e.data.length; cd += 46 + e.name.length; });
+  var out = new Uint8Array(size + cd + 22), v = new DataView(out.buffer), o = 0;
+  es.forEach(function(e){ e.off = o;
+    v.setUint32(o,0x04034b50,true); v.setUint16(o+4,20,true); v.setUint16(o+6,0x0800,true);
+    v.setUint16(o+8,0,true); v.setUint16(o+10,tm,true); v.setUint16(o+12,dt,true);
+    v.setUint32(o+14,e.crc,true); v.setUint32(o+18,e.data.length,true); v.setUint32(o+22,e.data.length,true);
+    v.setUint16(o+26,e.name.length,true); v.setUint16(o+28,0,true);
+    out.set(e.name,o+30); out.set(e.data,o+30+e.name.length);
+    o += 30 + e.name.length + e.data.length; });
+  var cdStart = o;
+  es.forEach(function(e){
+    v.setUint32(o,0x02014b50,true); v.setUint16(o+4,20,true); v.setUint16(o+6,20,true);
+    v.setUint16(o+8,0x0800,true); v.setUint16(o+10,0,true); v.setUint16(o+12,tm,true); v.setUint16(o+14,dt,true);
+    v.setUint32(o+16,e.crc,true); v.setUint32(o+20,e.data.length,true); v.setUint32(o+24,e.data.length,true);
+    v.setUint16(o+28,e.name.length,true);
+    v.setUint32(o+42,e.off,true); out.set(e.name,o+46); o += 46 + e.name.length; });
+  v.setUint32(o,0x06054b50,true); v.setUint16(o+8,es.length,true); v.setUint16(o+10,es.length,true);
+  v.setUint32(o+12,cd,true); v.setUint32(o+16,cdStart,true);
+  return out;
+}
+function download(blob, name){
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+function manifest(){
+  return { tool_version: VERSION, schema: SCHEMA,
+           proposal_algorithm_version: ALGO_VERSION, proposal_config: PROPOSAL_CONFIG,
+           adjustment_sign_convention: 'final minus proposed; positive = moved later, negative = moved earlier',
+           boundary_rounding: 'boundaries snapped to nearest whole sample; the same sample index is used for playback, export and manifest',
+           exported: new Date().toISOString(),
+           selections: Object.keys(decisions).map(function(k){ return decisions[k]; }) };
+}
+$('exportJson').addEventListener('click', function(){
+  download(new Blob([JSON.stringify(manifest(), null, 1)], {type:'application/json'}),
+           'region_selections.json');
+});
+$('exportZip').addEventListener('click', function(){
+  try {
+    var files = [], enc = new TextEncoder(), inclSrc = $('inclSrc').checked;
+    var csv = ['source_file,source_sha256,decision,start_s,end_s,start_sample,end_sample,duration_ms,'
+             + 'proposed_start_s,proposed_end_s,start_adjustment_ms,end_adjustment_ms,'
+             + 'reviewer_adjusted_start,reviewer_adjusted_end,removed_start_ms,removed_end_ms,'
+             + 'sample_rate,proposal_warnings,note'];
+    items.forEach(function(it){
+      var d = decisions[it.name];
+      if (!d) return;
+      csv.push([d.source_file, d.source_sha256 || '', d.decision, d.start_s, d.end_s,
+                d.start_sample, d.end_sample, d.duration_ms,
+                d.proposed_start_s, d.proposed_end_s, d.start_adjustment_ms, d.end_adjustment_ms,
+                d.reviewer_adjusted_start, d.reviewer_adjusted_end,
+                d.removed_from_start_ms, d.removed_from_end_ms, d.sample_rate,
+                '"' + (d.proposal_warnings||[]).join(' | ').replace(/"/g,'""') + '"',
+                '"' + String(d.note).replace(/"/g,'""') + '"'].join(','));
+      if (inclSrc && it.raw) files.push({ name: 'source/' + it.name, data: new Uint8Array(it.raw) });
+      if (d.decision !== 'usable') return;
+      var a = d.start_sample, b = d.end_sample;
+      files.push({ name: 'selected/' + it.name.replace(/\.wav$/i,'') + '_sel.wav',
+                   data: encodeWav(it.audio.samples.subarray(a, b), it.audio.rate) });
+    });
+    files.push({ name: 'manifest.json', data: enc.encode(JSON.stringify(manifest(), null, 1)) });
+    files.push({ name: 'manifest.csv',  data: enc.encode(csv.join('\n')) });
+    var snips = files.filter(function(f){ return f.name.indexOf('selected/') === 0; }).length;
+    if (!snips){ say('Nothing marked usable yet, so there is no audio to export.', true); return; }
+    download(new Blob([zip(files)], {type:'application/zip'}), 'selections.zip');
+  } catch(e){ say('Export failed: ' + e.message, true); dev('export error ' + e.message); }
+});
+</script></body></html>
