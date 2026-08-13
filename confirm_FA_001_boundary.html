@@ -1,0 +1,71 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Confirm onset/rime boundary — FA_001 妈</title><style>
+body{font-family:-apple-system,sans-serif;margin:0;padding:14px;background:#f5f2ea;color:#222;max-width:560px;margin:auto}
+h1{font-size:1.15rem}.card{background:#fff;border-radius:14px;padding:14px;margin:12px 0;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+button{font-size:1.05rem;padding:14px 10px;border-radius:12px;border:none;background:#3a6ea5;color:#fff;margin:4px;min-width:96px}
+button:active{opacity:.7}.adj{background:#8a7a5c;min-width:64px}
+#approve{background:#2e7d32;width:46%}#reject{background:#b23b3b;width:46%}
+#binfo{font-size:1.2rem;font-weight:600;text-align:center;margin:8px}
+input,select{font-size:1rem;padding:10px;border-radius:8px;border:1px solid #bbb;width:100%;box-sizing:border-box;margin:4px 0}
+#status{white-space:pre-wrap;font-size:.85rem;color:#555}.hint{font-size:.8rem;color:#777}
+canvas{width:100%;height:70px;background:#faf8f2;border-radius:8px}</style></head><body>
+<h1>FA_001 妈 mā (Tone 1) — confirm the one onset/rime boundary</h1>
+<div class="card"><b>1 · Load the master recording</b><br>
+<input type="file" id="file" accept=".wav,audio/wav"><div class="hint">Select FA_001_ma1.wav. The tool verifies it is the exact approved source.</div></div>
+<div class="card"><b>2 · Listen</b><br>
+<button onclick="play(EV0,EV1)">▶ Full event</button>
+<button onclick="play(EV0,B)">▶ Onset side</button>
+<button onclick="play(B,EV1)">▶ Rime side</button>
+<canvas id="wf" width="1040" height="140"></canvas></div>
+<div class="card"><b>3 · Adjust boundary</b>
+<div id="binfo"></div>
+<div style="text-align:center">
+<button class="adj" onclick="mv(-240)">−5 ms</button><button class="adj" onclick="mv(-48)">−1 ms</button><button class="adj" onclick="mv(-1)">−1 smp</button>
+<button class="adj" onclick="mv(1)">+1 smp</button><button class="adj" onclick="mv(48)">+1 ms</button><button class="adj" onclick="mv(240)">+5 ms</button></div>
+<div class="hint">Boundary = beginning of the rime (vowel-bearing portion). The /m/ murmur belongs to the onset. Proposed: sample 38400.</div></div>
+<div class="card"><b>4 · Decide</b><br>
+<input id="rev" placeholder="Reviewer identity / stable reviewer reference (required)">
+<select id="conf"><option value="">Confidence…</option><option>5</option><option>4</option><option>3</option><option>2</option><option>1</option></select>
+<div style="text-align:center"><button id="approve" onclick="dec('approve')">Approve</button><button id="reject" onclick="dec('reject')">Reject</button></div></div>
+<div class="card"><div id="status">Load FA_001_ma1.wav to begin.</div></div>
+<script>
+const SR=48000, EV0=33840, EV1=58800, SHA="901cf9054073bfcfdaf56a2af7200c5de31a97967ecd746db1d0337c0caf3ea8";
+let B=38400, ctx=null, buf=null, node=null;
+function fmt(){return `sample ${B}  ·  ${(B/SR).toFixed(4)} s  ·  ${((B-EV0)/48).toFixed(1)} ms into event`}
+function upd(){document.getElementById('binfo').textContent=fmt();draw()}
+function mv(d){B=Math.min(EV1-1,Math.max(EV0+1,B+d));upd()}
+async function sha256(ab){const h=await crypto.subtle.digest('SHA-256',ab);return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('')}
+document.getElementById('file').addEventListener('change',async e=>{
+  const f=e.target.files[0]; if(!f)return;
+  const ab=await f.arrayBuffer();
+  const hash=await sha256(ab.slice(0));
+  const s=document.getElementById('status');
+  if(hash!==SHA){s.textContent="✗ This file's SHA-256 does not match the approved source FA_001_ma1.wav.\nGot: "+hash;buf=null;return}
+  ctx=ctx||new (window.AudioContext||window.webkitAudioContext)();
+  buf=await ctx.decodeAudioData(ab);
+  s.textContent="✓ Source verified (SHA-256 matches). Listen, adjust if needed, then decide.";upd()});
+function play(a,b){if(!buf)return alert("Load the WAV first");if(node){try{node.stop()}catch(e){}}
+  node=ctx.createBufferSource();node.buffer=buf;node.connect(ctx.destination);
+  node.start(0,a/SR,(b-a)/SR)}
+function draw(){if(!buf)return;const c=document.getElementById('wf'),g=c.getContext('2d');
+  g.clearRect(0,0,c.width,c.height);const d=buf.getChannelData(0);const n=EV1-EV0;
+  g.strokeStyle="#3a6ea5";g.beginPath();
+  for(let x=0;x<c.width;x++){const i=EV0+Math.floor(x*n/c.width);let m=0;
+    for(let k=0;k<Math.ceil(n/c.width);k++)m=Math.max(m,Math.abs(d[i+k]||0));
+    g.moveTo(x,70-m*450);g.lineTo(x,70+m*450)}g.stroke();
+  const bx=(B-EV0)/n*c.width;g.strokeStyle="#b23b3b";g.lineWidth=2.5;
+  g.beginPath();g.moveTo(bx,0);g.lineTo(bx,c.height);g.stroke();g.lineWidth=1}
+function dec(kind){const r=document.getElementById('rev').value.trim(),cf=document.getElementById('conf').value;
+  if(!buf)return alert("Load and verify the WAV first");
+  if(!r)return alert("Reviewer identity is required");
+  if(!cf)return alert("Confidence is required");
+  const o={schema:"ra1-review-decision-1",source_file:"FA_001_ma1.wav",source_sha256:SHA,
+    event:{start:EV0,end:EV1},boundary_sample:B,decision:kind,reviewer_ref:r,
+    confidence:+cf,timestamp:new Date().toISOString(),tool:"confirm-FA001-1.0"};
+  const bl=new Blob([JSON.stringify(o,null,2)],{type:"application/json"});
+  const a=document.createElement('a');a.href=URL.createObjectURL(bl);
+  a.download="FA_001_review_decision.json";a.click();
+  document.getElementById('status').textContent=(kind==='approve'?"✓ Approval":"✗ Rejection")+" recorded at sample "+B+". The decision file downloaded — return it to complete the asset.";}
+upd();
+</script></body></html>
