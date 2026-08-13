@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Flight Academy — Reference Review Station v1</title>
+<style>
+:root{--ink:#22251F;--paper:#FBFAF5;--line:#D8DCD2;--seal:#C3402B;--bamboo:#4A7A57;--muted:#6C7266}
+*{box-sizing:border-box}
+body{margin:0;background:#EEF1EA;color:var(--ink);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{padding:14px 20px;background:var(--paper);border-bottom:1px solid var(--line);display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+h1{font-size:17px;margin:0}
+main{padding:18px 20px;max-width:1180px;margin:0 auto}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+.rule{background:#FFF8E7;border:1px solid #E0D3A8;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:14px}
+canvas{width:100%;height:190px;background:#fff;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:13px;margin-top:8px}
+th,td{border-bottom:1px solid var(--line);padding:5px 7px;text-align:left}
+th{color:var(--muted);font-weight:600}
+button{font:inherit;padding:8px 14px;border-radius:9px;border:1px solid var(--line);background:#fff;cursor:pointer;margin-right:6px}
+button.go{background:var(--bamboo);color:#fff;border-color:var(--bamboo)}
+button.warn{background:var(--seal);color:#fff;border-color:var(--seal)}
+button.sel{outline:3px solid var(--ink)}
+select,input[type=file]{font:inherit;padding:6px;border-radius:8px;border:1px solid var(--line);background:#fff}
+.flag{display:inline-block;background:#FBE9E5;color:var(--seal);border-radius:6px;padding:1px 7px;margin:2px 3px 2px 0;font-size:12px}
+.ok{color:var(--bamboo);font-weight:600}
+.small{font-size:13px;color:var(--muted)}
+#log{white-space:pre-wrap;font-family:ui-monospace,monospace;font-size:12px;max-height:220px;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px}
+</style></head>
+<body>
+<header>
+  <h1>Flight Academy — Reference Review Station <span class="small">v1 (offline)</span></h1>
+  <label class="small">asset JSON: <input type="file" id="assetFile" accept=".json" multiple></label>
+  <label class="small">audio WAV: <input type="file" id="wavFile" accept=".wav" multiple></label>
+  <span id="who" class="small"></span>
+</header>
+<main>
+<div class="rule">
+  <b>The only thing you can do here is judge measurements that already exist.</b>
+  There is no drawing, no dragging, no typing of pitch values, and no smoothing.
+  Every number you can approve was measured from the recording itself. If the
+  measurements disagree and you cannot tell which is right, choose
+  <b>NULL</b> — an honest gap is always better than a wrong target.
+</div>
+<div id="regions"></div>
+<div class="card">
+  <b>Review log</b> <span class="small">(export when finished; this is the immutable record)</span>
+  <div id="log">(no decisions yet)</div>
+  <p><button class="go" onclick="exportLog()">⬇ Export review log</button></p>
+</div>
+</main>
+<script>
+let assets={}, wavs={}, LOG=[];
+const REASONS=["estimator agreement","audible octave match","spectrogram harmonic support",
+  "creaky / non-modal","insufficient evidence","tracker failure","take unsuitable","other documented reason"];
+
+document.getElementById('assetFile').onchange=async e=>{
+  for(const f of e.target.files){ const j=JSON.parse(await f.text()); assets[j.source.wav]=j; }
+  render();
+};
+document.getElementById('wavFile').onchange=async e=>{
+  for(const f of e.target.files){ wavs[f.name]=URL.createObjectURL(f); }
+  render();
+};
+
+function draw(cv,reg,baseline){
+  const ctx=cv.getContext('2d'), W=cv.width=cv.clientWidth*2, H=cv.height=380;
+  ctx.scale(1,1); ctx.clearRect(0,0,W,H);
+  const fr=reg.frames.filter(f=>f.draft_hz!=null);
+  if(!fr.length) return;
+  const t=fr.map(f=>f.t_ms), s=fr.map(f=>f.draft_semitones);
+  const t0=Math.min(...t), t1=Math.max(...t), lo=Math.min(...s)-2, hi=Math.max(...s)+2;
+  const X=v=>((v-t0)/(t1-t0||1))*(W-70)+55, Y=v=>H-30-((v-lo)/((hi-lo)||1))*(H-60);
+  ctx.strokeStyle='#D8DCD2'; ctx.beginPath();
+  for(let g=Math.ceil(lo);g<=hi;g+=2){ctx.moveTo(50,Y(g));ctx.lineTo(W-15,Y(g));}
+  ctx.stroke();
+  ctx.fillStyle='#6C7266'; ctx.font='18px sans-serif';
+  ctx.fillText(hi.toFixed(0)+' st',6,Y(hi)+6); ctx.fillText(lo.toFixed(0)+' st',6,Y(lo)+6);
+  ctx.strokeStyle='#4A7A57'; ctx.lineWidth=3; ctx.beginPath();
+  fr.forEach((f,i)=>{ i?ctx.lineTo(X(f.t_ms),Y(f.draft_semitones)):ctx.moveTo(X(f.t_ms),Y(f.draft_semitones)); });
+  ctx.stroke();
+  ctx.fillStyle='#C3402B';
+  fr.filter(f=>f.flags.length).forEach(f=>{ ctx.beginPath(); ctx.arc(X(f.t_ms),Y(f.draft_semitones),5,0,7); ctx.fill(); });
+}
+
+function render(){
+  const host=document.getElementById('regions'); host.innerHTML='';
+  Object.values(assets).forEach(a=>{
+    a.regions.forEach((reg,ri)=>{
+      const id=a.source.wav+'#'+ri;
+      const fr=reg.frames, dr=fr.filter(f=>f.draft_hz!=null), fg=fr.filter(f=>f.flags.length);
+      const counts={}; fr.forEach(f=>f.flags.forEach(q=>counts[q]=(counts[q]||0)+1));
+      const d=document.createElement('div'); d.className='card';
+      d.innerHTML=`<b>${a.segmentation.syllable} T${a.segmentation.lexical_tone}</b>
+        <span class="small">${a.source.wav} · region ${ri+1} · rime ${reg.rime_start_s.toFixed(3)}–${reg.region_end_s.toFixed(3)} s
+        (${reg.rime_duration_ms} ms; ${reg.excluded_onset_ms} ms of /m/ onset excluded; SNR ${reg.region_snr_db} dB)</span>
+        <p class="small">${dr.length} of ${fr.length} frames have a draft value.
+        <b style="color:#C3402B">${fg.length} frames flagged.</b>
+        ${Object.entries(counts).map(([k,v])=>`<span class="flag">${k} ×${v}</span>`).join('')}</p>
+        <canvas id="cv_${ri}_${a.source.wav.replace(/\W/g,'')}"></canvas>
+        <p class="small">Diagnostics (advisory only, they cannot block your decision):
+        cyc ${reg.diagnostics.cyc_at_draft||'-'} · OEA2@candidate ${reg.diagnostics.oea2_at_draft||'-'} ·
+        OEA2@half ${reg.diagnostics.oea2_at_half||'-'} (P=${reg.diagnostics.oea2_P_half_db})</p>
+        <p>${wavs[a.source.wav]?`<audio controls src="${wavs[a.source.wav]}"></audio>`:'<span class="small">load the WAV to listen</span>'}</p>
+        <p>
+          <button class="go" onclick="decide('${id}','APPROVE')">APPROVE measured region</button>
+          <button onclick="decide('${id}','SELECT_BRANCH')">SELECT measured branch</button>
+          <button onclick="decide('${id}','NULL')">NULL this region</button>
+          <button onclick="decide('${id}','ANNOTATE')">ANNOTATE</button>
+          <button class="warn" onclick="decide('${id}','REJECT_TAKE')">REJECT take</button>
+        </p>
+        <p class="small">reason: <select id="r_${ri}_${a.source.wav.replace(/\W/g,'')}">
+          ${REASONS.map(r=>`<option>${r}</option>`).join('')}</select></p>`;
+      host.appendChild(d);
+      draw(d.querySelector('canvas'),reg,a.normalization.speaker_baseline_hz);
+    });
+  });
+}
+function decide(id,action){
+  const key=id.split('#'), sel=document.getElementById('r_'+key[1]+'_'+key[0].replace(/\W/g,''));
+  LOG.push({region:id,action:action,reason:sel?sel.value:'',timestamp:new Date().toISOString()});
+  document.getElementById('log').textContent=LOG.map(l=>`${l.timestamp}  ${l.region}  ${l.action}  [${l.reason}]`).join('\n');
+}
+function exportLog(){
+  const b=new Blob([JSON.stringify({review_log:LOG,exported:new Date().toISOString()},null,1)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='review_log.json'; a.click();
+}
+</script></body></html>
