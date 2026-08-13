@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Pronunciation Region Selector</title>
+<style>
+:root{--ink:#22251F;--paper:#FBFAF5;--bg:#EEF1EA;--line:#D8DCD2;--muted:#6C7266;
+      --green:#4A7A57;--red:#C3402B;--blue:#1F6FB2;--amber:#B98A2E}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font:17px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-text-size-adjust:100%}
+.wrap{max-width:900px;margin:0 auto;padding:14px 16px 60px}
+h1{font-size:19px;margin:0 0 4px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:16px}
+.hint{font-size:15px;color:var(--muted);margin:6px 0 0}
+button{font:inherit;font-weight:600;border-radius:14px;border:2px solid var(--line);
+  background:#fff;color:var(--ink);cursor:pointer;padding:16px 18px;min-height:60px;width:100%;
+  margin-bottom:10px;display:block;text-align:center}
+button:active{transform:scale(.99)}
+button:disabled{opacity:.4}
+button.green{background:var(--green);border-color:var(--green);color:#fff}
+button.red{background:var(--red);border-color:var(--red);color:#fff}
+button.blue{background:var(--blue);border-color:var(--blue);color:#fff}
+button small{display:block;font-weight:400;font-size:13px;opacity:.85;margin-top:3px}
+.row{display:flex;gap:10px}
+.row button{flex:1}
+canvas{width:100%;height:180px;background:#fff;border:1px solid var(--line);
+  border-radius:12px;display:block;touch-action:none}
+#times{font-size:18px;margin:12px 0 2px;font-weight:600}
+#dur{font-size:15px;color:var(--muted)}
+#status{font-size:15px;color:var(--muted);white-space:pre-wrap;margin-top:8px}
+#status.err{color:var(--red);font-weight:600}
+.pill{display:inline-block;padding:4px 12px;border-radius:999px;background:#E6ECE6;
+  color:var(--green);font-size:14px;font-weight:700;margin-left:8px}
+.pill.no{background:#FBE9E5;color:var(--red)}
+textarea{width:100%;font:inherit;padding:12px;border-radius:12px;border:2px solid var(--line);min-height:70px}
+details{margin-top:20px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+summary{cursor:pointer;color:var(--muted);font-size:15px}
+pre{white-space:pre-wrap;font-size:12px;max-height:240px;overflow:auto}
+input[type=file]{font:inherit;padding:10px;border:2px dashed var(--line);border-radius:12px;width:100%;background:#fff}
+.hidden{display:none}
+.step{font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:0 0 6px}
+</style></head>
+<body><div class="wrap">
+
+<div class="card" id="loadCard">
+  <h1>Pronunciation Region Selector</h1>
+  <p class="hint">Choose the recordings you want to review. Nothing is uploaded — everything stays on this device, and the original recordings are never changed.</p>
+  <p><input type="file" id="picker" accept=".wav,audio/wav" multiple></p>
+  <div id="status">No recordings loaded yet.</div>
+</div>
+
+<div class="card hidden" id="mainCard">
+  <p class="step">Recording <span id="itemNo">1 of 1</span></p>
+  <h1 id="fname">—</h1>
+  <p class="hint" id="listenHint">Listen first. Then mark where the complete pronunciation begins and ends.</p>
+
+  <canvas id="wave"></canvas>
+  <div id="times">—</div>
+  <div id="dur">—</div>
+
+  <button class="blue" id="playAll">▶ Hear the whole recording</button>
+
+  <p class="step" style="margin-top:18px">Which edge are you moving?</p>
+  <div class="row">
+    <button id="pickStart">Start</button>
+    <button id="pickEnd">End</button>
+  </div>
+  <div class="row">
+    <button id="m50">−50 ms</button>
+    <button id="m10">−10 ms</button>
+    <button id="p10">+10 ms</button>
+    <button id="p50">+50 ms</button>
+  </div>
+  <p class="hint">You can also drag the two edges on the picture above, but the buttons are the precise way.</p>
+
+  <p class="step" style="margin-top:18px">Check what you have chosen</p>
+  <button id="prevSel">▶ Preview selection<small>Exactly what will be analysed</small></button>
+  <button id="prevNat">▶ Preview naturally<small>Adds a little sound before and after, so you can hear whether the pronunciation is complete</small></button>
+
+  <p class="step" style="margin-top:18px">Your decision</p>
+  <button class="green" id="accept">✓ This pronunciation is usable</button>
+  <button id="reset">↺ Reset selection</button>
+  <button class="red" id="reject">✕ This recording is not usable</button>
+
+  <p class="step" style="margin-top:14px">Note (optional)</p>
+  <textarea id="note" placeholder="Anything you want to say about this recording"></textarea>
+</div>
+
+<div class="card hidden" id="verifyCard">
+  <h1>Saved selection</h1>
+  <p class="hint">Does this contain the complete usable pronunciation?</p>
+  <div id="verifyTimes" style="font-size:18px;font-weight:600;margin:10px 0"></div>
+  <button class="blue" id="verifyPlay">▶ Hear it again</button>
+  <button class="green" id="verifyYes">Yes, continue</button>
+  <button id="verifyAdjust">Adjust it</button>
+</div>
+
+<div class="card hidden" id="doneCard">
+  <h1>All recordings reviewed</h1>
+  <p class="hint" id="doneSummary"></p>
+  <button class="green" id="exportZip">⬇ Export selections (ZIP: audio + manifest)</button>
+  <button id="exportJson">⬇ Export decisions only (JSON)</button>
+  <button id="backToList">← Back to the recordings</button>
+</div>
+
+<div class="card hidden" id="navCard">
+  <div class="row">
+    <button id="prevItem">← Previous</button>
+    <button id="nextItem">Next →</button>
+  </div>
+  <button id="finish">Finish and export</button>
+  <div id="progress" class="hint"></div>
+</div>
+
+<details id="dev">
+  <summary>Developer diagnostics</summary>
+  <pre id="devlog">(nothing yet)</pre>
+</details>
+
+</div>
+<script>
+"use strict";
+var VERSION = "region-selector-1.0";
+var CONTEXT_S = 0.125, MIN_SEL_S = 0.005;
+var items = [], idx = 0, decisions = {};
+var active = 'start';
+var ctxA = null, srcNode = null, rafId = null, playFrom = 0, playTo = 0, playStart = 0;
+var dragging = null;
+
+function $(id){ return document.getElementById(id); }
+function say(m, err){ var s = $('status'); s.textContent = m; s.className = err ? 'err' : ''; }
+function dev(m){ var d = $('devlog'); d.textContent = (d.textContent === '(nothing yet)' ? '' : d.textContent + '\n') + m; }
+window.onerror = function(m,s,l){ say('Problem: ' + m + ' (line ' + l + ')', true); dev('ERROR ' + m + ' @' + l); };
+
+/* ---------------------------------------------------------- WAV decoding */
+function parseWav(buf){
+  var v = new DataView(buf);
+  if (v.byteLength < 44) throw new Error('file too small to be a WAV');
+  function tag(o){ return String.fromCharCode(v.getUint8(o),v.getUint8(o+1),v.getUint8(o+2),v.getUint8(o+3)); }
+  if (tag(0) !== 'RIFF' || tag(8) !== 'WAVE') throw new Error('not a RIFF/WAVE file');
+  var p = 12, fmt = null, dataOff = -1, dataLen = 0;
+  while (p + 8 <= v.byteLength){
+    var id = tag(p), sz = v.getUint32(p+4, true);
+    if (id === 'fmt ') fmt = { format: v.getUint16(p+8,true), ch: v.getUint16(p+10,true),
+                               rate: v.getUint32(p+12,true), bits: v.getUint16(p+22,true) };
+    else if (id === 'data'){ dataOff = p + 8; dataLen = sz; }
+    p += 8 + sz + (sz % 2);
+  }
+  if (!fmt || dataOff < 0) throw new Error('WAV is missing fmt or data');
+  if (fmt.format !== 1 || fmt.bits !== 16) throw new Error('only 16-bit PCM WAV is supported here');
+  var n = Math.floor(Math.min(dataLen, v.byteLength - dataOff) / 2 / fmt.ch);
+  var out = new Float32Array(n);
+  for (var i = 0; i < n; i++) out[i] = v.getInt16(dataOff + i*2*fmt.ch, true) / 32768;
+  if (n === 0) throw new Error('WAV contains no audio samples');
+  return { samples: out, rate: fmt.rate, channels: fmt.ch, bits: fmt.bits };
+}
+
+/* ------------------------------------------------------------- file load */
+$('picker').addEventListener('change', function(ev){
+  var files = Array.prototype.slice.call(ev.target.files || []);
+  if (!files.length){ say('No recordings selected.', true); return; }
+  items = []; decisions = {}; idx = 0;
+  var pending = files.length, notes = [];
+  files.forEach(function(f){
+    var rd = new FileReader();
+    rd.onload = function(){
+      try {
+        var w = parseWav(rd.result);
+        items.push({ name: f.name, audio: w, dur: w.samples.length / w.rate,
+                     start: 0, end: w.samples.length / w.rate });
+        notes.push(f.name + ' — ' + (w.samples.length / w.rate).toFixed(2) + ' s, ' + w.rate + ' Hz');
+      } catch(e){ notes.push('SKIPPED ' + f.name + ' — ' + e.message); dev('skip ' + f.name + ': ' + e.message); }
+      if (--pending === 0) ready(notes);
+    };
+    rd.onerror = function(){ notes.push('COULD NOT READ ' + f.name); if (--pending === 0) ready(notes); };
+    rd.readAsArrayBuffer(f);
+  });
+});
+
+function ready(notes){
+  say(notes.join('\n'), items.length === 0);
+  if (!items.length) return;
+  items.sort(function(a,b){ return a.name < b.name ? -1 : 1; });
+  items.forEach(function(it){ it.start = 0; it.end = it.dur; });
+  $('mainCard').classList.remove('hidden');
+  $('navCard').classList.remove('hidden');
+  show(0);
+}
+
+/* ------------------------------------------------------------ navigation */
+function show(i){
+  stop();
+  idx = Math.max(0, Math.min(items.length - 1, i));
+  var it = items[idx];
+  $('itemNo').textContent = (idx+1) + ' of ' + items.length;
+  $('fname').textContent = it.name;
+  $('note').value = (decisions[it.name] && decisions[it.name].note) || '';
+  $('verifyCard').classList.add('hidden');
+  $('doneCard').classList.add('hidden');
+  $('mainCard').classList.remove('hidden');
+  setActive('start');
+  updateTimes(); drawWave();
+  var d = decisions[it.name];
+  $('progress').innerHTML = Object.keys(decisions).length + ' of ' + items.length + ' decided' +
+    (d ? ('<span class="pill' + (d.decision === 'usable' ? '' : ' no') + '">' +
+          (d.decision === 'usable' ? 'marked usable' : 'not usable') + '</span>') : '');
+}
+$('prevItem').addEventListener('click', function(){ show(idx-1); });
+$('nextItem').addEventListener('click', function(){ show(idx+1); });
+$('finish').addEventListener('click', function(){
+  stop();
+  $('mainCard').classList.add('hidden'); $('verifyCard').classList.add('hidden');
+  var u = 0, n = 0;
+  Object.keys(decisions).forEach(function(k){ decisions[k].decision === 'usable' ? u++ : n++; });
+  $('doneSummary').textContent = u + ' marked usable, ' + n + ' marked not usable, ' +
+    (items.length - u - n) + ' not yet decided.';
+  $('doneCard').classList.remove('hidden');
+});
+$('backToList').addEventListener('click', function(){ $('doneCard').classList.add('hidden'); show(idx); });
+
+/* -------------------------------------------------------------- boundaries */
+function setActive(w){
+  active = w;
+  $('pickStart').className = (w === 'start') ? 'blue' : '';
+  $('pickEnd').className   = (w === 'end')   ? 'blue' : '';
+}
+$('pickStart').addEventListener('click', function(){ setActive('start'); });
+$('pickEnd').addEventListener('click', function(){ setActive('end'); });
+
+function nudge(ms){
+  var it = items[idx]; if (!it) return;
+  var d = ms / 1000;
+  if (active === 'start') it.start = Math.max(0, Math.min(it.end - MIN_SEL_S, it.start + d));
+  else                    it.end   = Math.min(it.dur, Math.max(it.start + MIN_SEL_S, it.end + d));
+  updateTimes(); drawWave();
+}
+$('m50').addEventListener('click', function(){ nudge(-50); });
+$('m10').addEventListener('click', function(){ nudge(-10); });
+$('p10').addEventListener('click', function(){ nudge(10); });
+$('p50').addEventListener('click', function(){ nudge(50); });
+
+function updateTimes(){
+  var it = items[idx]; if (!it) return;
+  $('times').textContent = 'Starts at ' + it.start.toFixed(3) + ' s   ·   ends at ' + it.end.toFixed(3) + ' s';
+  $('dur').textContent = 'Selected length: ' + Math.round((it.end - it.start) * 1000) +
+    ' ms   (whole recording is ' + Math.round(it.dur * 1000) + ' ms)';
+}
+
+/* ------------------------------------------------------------- waveform */
+function drawWave(playT){
+  var it = items[idx]; if (!it) return;
+  var cv = $('wave'), W = (cv.clientWidth || 800) * 2, H = 360;
+  cv.width = W; cv.height = H;
+  var c = cv.getContext('2d');
+  c.clearRect(0,0,W,H);
+  var s = it.audio.samples, n = s.length, mid = H/2;
+  var X = function(t){ return (t / it.dur) * W; };
+
+  // outside-selection shading
+  c.fillStyle = '#EFEFEC';
+  c.fillRect(0, 0, X(it.start), H);
+  c.fillRect(X(it.end), 0, W - X(it.end), H);
+
+  // waveform
+  c.strokeStyle = '#8C948A'; c.lineWidth = 1;
+  c.beginPath();
+  var step = Math.max(1, Math.floor(n / W));
+  for (var x = 0; x < W; x++){
+    var i0 = Math.floor(x / W * n), lo = 0, hi = 0;
+    for (var k = 0; k < step; k++){
+      var vv = s[i0 + k] || 0;
+      if (vv < lo) lo = vv; if (vv > hi) hi = vv;
+    }
+    c.moveTo(x, mid - hi * mid * 0.92);
+    c.lineTo(x, mid - lo * mid * 0.92);
+  }
+  c.stroke();
+
+  // selection edges
+  [['start', it.start], ['end', it.end]].forEach(function(p){
+    var xx = X(p[1]);
+    c.strokeStyle = (active === p[0]) ? '#1F6FB2' : '#4A7A57';
+    c.lineWidth = (active === p[0]) ? 8 : 5;
+    c.beginPath(); c.moveTo(xx, 0); c.lineTo(xx, H); c.stroke();
+    c.fillStyle = c.strokeStyle;
+    c.beginPath(); c.arc(xx, 26, 22, 0, 6.3); c.fill();
+    c.fillStyle = '#fff'; c.font = 'bold 22px sans-serif'; c.textAlign = 'center';
+    c.fillText(p[0] === 'start' ? 'S' : 'E', xx, 34);
+    c.textAlign = 'start';
+  });
+
+  if (playT != null){
+    var px = X(playT);
+    c.strokeStyle = '#C3402B'; c.lineWidth = 5;
+    c.beginPath(); c.moveTo(px, 0); c.lineTo(px, H); c.stroke();
+  }
+}
+window.addEventListener('resize', function(){ drawWave(); });
+
+/* dragging the handles (optional; buttons remain the precise route) */
+(function(){
+  var cv = $('wave');
+  function tAt(e){
+    var it = items[idx], r = cv.getBoundingClientRect();
+    return Math.max(0, Math.min(it.dur, (e.clientX - r.left) / (r.width || 1) * it.dur));
+  }
+  cv.addEventListener('pointerdown', function(e){
+    var it = items[idx]; if (!it) return;
+    var t = tAt(e), ds = Math.abs(t - it.start), de = Math.abs(t - it.end);
+    var tol = it.dur * 0.06;
+    if (Math.min(ds, de) > tol) return;          // ignore taps away from a handle
+    dragging = (ds <= de) ? 'start' : 'end';
+    setActive(dragging);
+    e.preventDefault();
+    if (cv.setPointerCapture) { try { cv.setPointerCapture(e.pointerId); } catch(_){} }
+  });
+  cv.addEventListener('pointermove', function(e){
+    if (!dragging) return;
+    e.preventDefault();
+    var it = items[idx], t = tAt(e);
+    if (dragging === 'start') it.start = Math.min(t, it.end - MIN_SEL_S);
+    else it.end = Math.max(t, it.start + MIN_SEL_S);
+    it.start = Math.max(0, it.start); it.end = Math.min(it.dur, it.end);
+    updateTimes(); drawWave();
+  });
+  function up(){ dragging = null; }
+  cv.addEventListener('pointerup', up);
+  cv.addEventListener('pointercancel', up);
+})();
+
+/* -------------------------------------------------------------- playback */
+function actx(){
+  if (!ctxA) ctxA = new (window.AudioContext || window.webkitAudioContext)();
+  if (ctxA.state === 'suspended') ctxA.resume();
+  return ctxA;
+}
+function stop(){
+  if (srcNode){ try { srcNode.stop(); } catch(_){} srcNode = null; }
+  if (rafId){ cancelAnimationFrame(rafId); rafId = null; }
+  drawWave();
+}
+function play(from, to){
+  var it = items[idx]; if (!it) return;
+  stop();
+  from = Math.max(0, from); to = Math.min(it.dur, to);
+  if (to - from < 0.001){ say('That selection is too short to hear.', true); return; }
+  var a = actx();
+  var buf = a.createBuffer(1, it.audio.samples.length, it.audio.rate);
+  buf.copyToChannel ? buf.copyToChannel(it.audio.samples, 0)
+                    : buf.getChannelData(0).set(it.audio.samples);
+  srcNode = a.createBufferSource();
+  srcNode.buffer = buf; srcNode.connect(a.destination);
+  playFrom = from; playTo = to; playStart = a.currentTime;
+  srcNode.start(0, from, to - from);
+  var tick = function(){
+    var el = actx().currentTime - playStart;
+    var t = playFrom + el;
+    if (t >= playTo){ stop(); return; }
+    drawWave(t);
+    rafId = requestAnimationFrame(tick);
+  };
+  rafId = requestAnimationFrame(tick);
+}
+$('playAll').addEventListener('click', function(){ var it = items[idx]; play(0, it.dur); });
+$('prevSel').addEventListener('click', function(){ var it = items[idx]; play(it.start, it.end); });
+$('prevNat').addEventListener('click', function(){
+  var it = items[idx]; play(it.start - CONTEXT_S, it.end + CONTEXT_S); });
+
+/* -------------------------------------------------------------- decisions */
+function saveDecision(kind){
+  var it = items[idx];
+  decisions[it.name] = {
+    source_file: it.name, decision: kind,
+    start_s: kind === 'usable' ? +it.start.toFixed(4) : null,
+    end_s:   kind === 'usable' ? +it.end.toFixed(4)   : null,
+    duration_ms: kind === 'usable' ? Math.round((it.end - it.start) * 1000) : null,
+    recording_duration_ms: Math.round(it.dur * 1000),
+    removed_from_start_ms: kind === 'usable' ? Math.round(it.start * 1000) : null,
+    removed_from_end_ms:   kind === 'usable' ? Math.round((it.dur - it.end) * 1000) : null,
+    sample_rate: it.audio.rate,
+    note: $('note').value || '',
+    timestamp: new Date().toISOString(),
+    tool_version: VERSION, schema: 'region-selection-1'
+  };
+  dev('saved ' + it.name + ' → ' + kind);
+}
+$('accept').addEventListener('click', function(){
+  var it = items[idx];
+  saveDecision('usable');
+  $('verifyTimes').textContent = Math.round((it.end - it.start) * 1000) + ' ms  (' +
+    it.start.toFixed(3) + ' s → ' + it.end.toFixed(3) + ' s)';
+  $('mainCard').classList.add('hidden');
+  $('verifyCard').classList.remove('hidden');
+  play(it.start, it.end);
+});
+$('reject').addEventListener('click', function(){
+  saveDecision('not_usable'); stop();
+  if (idx < items.length - 1) show(idx + 1); else show(idx);
+});
+$('reset').addEventListener('click', function(){
+  var it = items[idx]; it.start = 0; it.end = it.dur;
+  setActive('start'); updateTimes(); drawWave();
+});
+$('verifyPlay').addEventListener('click', function(){ var it = items[idx]; play(it.start, it.end); });
+$('verifyYes').addEventListener('click', function(){
+  stop();
+  if (idx < items.length - 1) show(idx + 1);
+  else $('finish').click();
+});
+$('verifyAdjust').addEventListener('click', function(){
+  stop(); $('verifyCard').classList.add('hidden'); $('mainCard').classList.remove('hidden'); drawWave();
+});
+
+/* ---------------------------------------------------------------- export */
+function encodeWav(samples, rate){
+  var n = samples.length, b = new ArrayBuffer(44 + n*2), v = new DataView(b);
+  function ws(o,s){ for (var i=0;i<s.length;i++) v.setUint8(o+i, s.charCodeAt(i)); }
+  ws(0,'RIFF'); v.setUint32(4, 36+n*2, true); ws(8,'WAVE'); ws(12,'fmt ');
+  v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,rate,true); v.setUint32(28,rate*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true);
+  ws(36,'data'); v.setUint32(40, n*2, true);
+  for (var i=0;i<n;i++){ var s = Math.max(-1, Math.min(1, samples[i]));
+    v.setInt16(44+i*2, s < 0 ? s*0x8000 : s*0x7FFF, true); }
+  return new Uint8Array(b);
+}
+var CRC = (function(){ var t = new Uint32Array(256);
+  for (var i=0;i<256;i++){ var c=i; for (var k=0;k<8;k++) c = (c&1) ? (0xEDB88320^(c>>>1)) : (c>>>1); t[i]=c; }
+  return t; })();
+function crc32(u8){ var c = 0xFFFFFFFF;
+  for (var i=0;i<u8.length;i++) c = CRC[(c ^ u8[i]) & 0xFF] ^ (c>>>8);
+  return (c ^ 0xFFFFFFFF) >>> 0; }
+function zip(files){
+  var enc = new TextEncoder(), now = new Date();
+  var dt = ((now.getFullYear()-1980)<<9 | (now.getMonth()+1)<<5 | now.getDate()) & 0xFFFF;
+  var tm = ((now.getHours()<<11) | (now.getMinutes()<<5) | (now.getSeconds()>>1)) & 0xFFFF;
+  var es = files.map(function(f){ return { name: enc.encode(f.name), data: f.data, crc: crc32(f.data), off: 0 }; });
+  var size = 0, cd = 0;
+  es.forEach(function(e){ size += 30 + e.name.length + e.data.length; cd += 46 + e.name.length; });
+  var out = new Uint8Array(size + cd + 22), v = new DataView(out.buffer), o = 0;
+  es.forEach(function(e){ e.off = o;
+    v.setUint32(o,0x04034b50,true); v.setUint16(o+4,20,true); v.setUint16(o+6,0x0800,true);
+    v.setUint16(o+8,0,true); v.setUint16(o+10,tm,true); v.setUint16(o+12,dt,true);
+    v.setUint32(o+14,e.crc,true); v.setUint32(o+18,e.data.length,true); v.setUint32(o+22,e.data.length,true);
+    v.setUint16(o+26,e.name.length,true); v.setUint16(o+28,0,true);
+    out.set(e.name,o+30); out.set(e.data,o+30+e.name.length);
+    o += 30 + e.name.length + e.data.length; });
+  var cdStart = o;
+  es.forEach(function(e){
+    v.setUint32(o,0x02014b50,true); v.setUint16(o+4,20,true); v.setUint16(o+6,20,true);
+    v.setUint16(o+8,0x0800,true); v.setUint16(o+10,0,true); v.setUint16(o+12,tm,true); v.setUint16(o+14,dt,true);
+    v.setUint32(o+16,e.crc,true); v.setUint32(o+20,e.data.length,true); v.setUint32(o+24,e.data.length,true);
+    v.setUint16(o+28,e.name.length,true);
+    v.setUint32(o+42,e.off,true); out.set(e.name,o+46); o += 46 + e.name.length; });
+  v.setUint32(o,0x06054b50,true); v.setUint16(o+8,es.length,true); v.setUint16(o+10,es.length,true);
+  v.setUint32(o+12,cd,true); v.setUint32(o+16,cdStart,true);
+  return out;
+}
+function download(blob, name){
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+function manifest(){
+  return { tool_version: VERSION, schema: 'region-selection-1',
+           exported: new Date().toISOString(),
+           selections: Object.keys(decisions).map(function(k){ return decisions[k]; }) };
+}
+$('exportJson').addEventListener('click', function(){
+  download(new Blob([JSON.stringify(manifest(), null, 1)], {type:'application/json'}),
+           'region_selections.json');
+});
+$('exportZip').addEventListener('click', function(){
+  try {
+    var files = [], enc = new TextEncoder(), csv = ['source_file,decision,start_s,end_s,duration_ms,removed_start_ms,removed_end_ms,sample_rate,note'];
+    items.forEach(function(it){
+      var d = decisions[it.name];
+      if (!d) return;
+      csv.push([d.source_file, d.decision, d.start_s, d.end_s, d.duration_ms,
+                d.removed_from_start_ms, d.removed_from_end_ms, d.sample_rate,
+                '"' + String(d.note).replace(/"/g,'""') + '"'].join(','));
+      if (d.decision !== 'usable') return;
+      var a = Math.round(d.start_s * it.audio.rate), b = Math.round(d.end_s * it.audio.rate);
+      files.push({ name: 'selected/' + it.name.replace(/\.wav$/i,'') + '_sel.wav',
+                   data: encodeWav(it.audio.samples.subarray(a, b), it.audio.rate) });
+    });
+    files.push({ name: 'manifest.json', data: enc.encode(JSON.stringify(manifest(), null, 1)) });
+    files.push({ name: 'manifest.csv',  data: enc.encode(csv.join('\n')) });
+    if (files.length <= 2){ say('Nothing marked usable yet, so there is no audio to export.', true); return; }
+    download(new Blob([zip(files)], {type:'application/zip'}), 'selections.zip');
+  } catch(e){ say('Export failed: ' + e.message, true); dev('export error ' + e.message); }
+});
+</script></body></html>
