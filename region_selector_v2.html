@@ -307,10 +307,18 @@ $('picker').addEventListener('change', function(ev){
       try {
         var w = parseWav(rd.result);
         var dur = w.samples.length / w.rate;
-        var pr = proposeRegion(w.samples, w.rate, PROPOSAL_CONFIG);
+        var pr, perr = null;
+        try { pr = proposeRegion(w.samples, w.rate, PROPOSAL_CONFIG); }
+        catch(pe){ perr = pe.message; pr = null; }
+        if (!pr || !(pr.end > pr.start)){
+          pr = { start: null, end: null, warnings: [
+            'The automatic selection could not be calculated for this recording' +
+            (perr ? ' (' + perr + ')' : '') + ', so the whole recording is selected.'] };
+        }
         var it = { name: f.name, audio: w, dur: dur, raw: rd.result,
                    start: pr.start, end: pr.end,
                    propStart: pr.start, propEnd: pr.end, warnings: pr.warnings,
+                   proposalFailed: (pr.start == null), proposalError: perr,
                    touchedStart: false, touchedEnd: false, sha: null };
         items.push(it);
         sha256Hex(rd.result).then(function(h){ it.sha = h; });
@@ -327,7 +335,24 @@ function ready(notes){
   say(notes.join('\n'), items.length === 0);
   if (!items.length) return;
   items.sort(function(a,b){ return a.name < b.name ? -1 : 1; });
-  items.forEach(function(it){ it.start = 0; it.end = it.dur; });
+  // Apply each file's automatic proposal. (v1 reset every item to the whole
+  // recording here; that silently discarded the proposal.)
+  var failed = [];
+  items.forEach(function(it){
+    if (it.proposalFailed || it.propStart == null || it.propEnd == null ||
+        !(it.propEnd > it.propStart)){
+      it.propStart = 0; it.propEnd = it.dur;
+      it.start = 0; it.end = it.dur;
+      failed.push(it.name + (it.proposalError ? ' — ' + it.proposalError : ''));
+    } else {
+      it.start = it.propStart; it.end = it.propEnd;
+    }
+  });
+  if (failed.length){
+    notes.push('AUTOMATIC SELECTION FAILED for ' + failed.length + ' recording(s); ' +
+               'the whole recording is selected for these instead: ' + failed.join(', '));
+    dev('proposal failed: ' + failed.join(' | '));
+  }
   $('mainCard').classList.remove('hidden');
   $('navCard').classList.remove('hidden');
   show(0);
@@ -350,7 +375,9 @@ function show(i){
     (decisions[it.name] ? ' saved' : ((it.touchedStart || it.touchedEnd) ? ' adjusted' : ''));
   badge.textContent = decisions[it.name] ? 'Saved'
     : ((it.touchedStart || it.touchedEnd) ? 'Adjusted by you'
-       : 'Automatic starting selection — listen and adjust if needed');
+       : (it.proposalFailed
+          ? 'Automatic selection unavailable — whole recording selected, please adjust'
+          : 'Automatic starting selection — listen and adjust if needed'));
   var wb = $('warnBox'); wb.innerHTML = '';
   (it.warnings || []).forEach(function(w){
     var p = document.createElement('p'); p.textContent = w; wb.appendChild(p); });
