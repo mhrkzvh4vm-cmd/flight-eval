@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Flight Academy — Reference Review Station v3</title>
+<style>
+:root{--ink:#22251F;--paper:#FBFAF5;--line:#D8DCD2;--seal:#C3402B;--bamboo:#4A7A57;--muted:#6C7266;--amber:#B98A2E}
+*{box-sizing:border-box}
+body{margin:0;background:#EEF1EA;color:var(--ink);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{padding:14px 20px;background:var(--paper);border-bottom:1px solid var(--line)}
+h1{font-size:17px;margin:0 0 8px}
+main{padding:18px 20px;max-width:1180px;margin:0 auto}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px;transition:box-shadow .12s,border-color .12s}
+.card.playing{border-color:var(--bamboo);box-shadow:0 0 0 3px rgba(74,122,87,.30)}
+.rule{background:#FFF8E7;border:1px solid #E0D3A8;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:14px}
+#status{margin-top:8px;font-size:13px;color:var(--muted);white-space:pre-wrap}
+#status.err{color:var(--seal);font-weight:600}
+canvas{width:100%;height:210px;background:#fff;border:1px solid var(--line);border-radius:8px;display:block;cursor:crosshair;touch-action:none}
+button{font:inherit;padding:8px 14px;border-radius:9px;border:1px solid var(--line);background:#fff;cursor:pointer;margin:0 6px 6px 0}
+button.go{background:var(--bamboo);color:#fff;border-color:var(--bamboo)}
+button.warn{background:var(--seal);color:#fff;border-color:var(--seal)}
+button:disabled{opacity:.45;cursor:default}
+select{font:inherit;padding:6px;border-radius:8px;border:1px solid var(--line);background:#fff}
+input[type=file]{font:inherit;padding:6px;border-radius:8px;border:1px solid var(--line);background:#fff}
+.flag{display:inline-block;background:#FBE9E5;color:var(--seal);border-radius:6px;padding:1px 7px;margin:2px 3px 2px 0;font-size:12px}
+.small{font-size:13px;color:var(--muted)}
+.decision{margin:10px 0;padding:10px 14px;border-radius:10px;font-weight:700;font-size:15px;display:none}
+.decision.show{display:block}
+.d-APPROVE{background:#E8F2E9;color:#2E5A39;border:1px solid var(--bamboo)}
+.d-NULL{background:#EFEFEC;color:#4A4A45;border:1px solid var(--muted)}
+.d-NULL_SPAN{background:#FBF3E2;color:#6B5312;border:1px solid var(--amber)}
+.d-ANNOTATE{background:#FFF8E7;color:#6B5312;border:1px solid #E0D3A8}
+.d-SELECT_BRANCH{background:#E9EFF7;color:#1F4A78;border:1px solid #1F6FB2}
+.d-REJECT_TAKE{background:#FBE9E5;color:#8E1F1F;border:1px solid var(--seal)}
+#log{white-space:pre-wrap;font-family:ui-monospace,monospace;font-size:12px;max-height:240px;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px}
+</style></head>
+<body>
+<header>
+  <h1>Flight Academy — Reference Review Station <span class="small">v3 (offline)</span></h1>
+  <label class="small">Select the asset JSON files and the WAV files together:
+    <input type="file" id="picker" multiple></label>
+  <div id="status">No files loaded yet.</div>
+</header>
+<main>
+<div class="rule">
+  <b>The only thing you can do here is judge measurements that already exist.</b>
+  There is no drawing, no dragging of pitch, no typing of values, and no smoothing.
+  Drag across the plot to select a <i>time span</i> only — that lets you null part of a
+  region, never edit it. If the measurements disagree and you cannot tell which is
+  right, choose <b>NULL</b>: an honest gap is always better than a wrong target.
+</div>
+<div id="regions"></div>
+<div class="card">
+  <b>Review log</b> <span class="small">(export when finished)</span>
+  <div id="log">(no decisions yet)</div>
+  <p><button class="go" id="exportBtn">⬇ Export review log</button></p>
+</div>
+</main>
+<script>
+"use strict";
+var assets = {}, wavs = {}, LOG = [];
+var CONTEXT_S = 0.125;                 // ~125 ms of context each side
+var REASONS = ["estimator agreement","audible octave match","spectrogram harmonic support",
+  "creaky / non-modal","insufficient evidence","tracker failure","take unsuitable","other documented reason"];
+
+function say(msg, isErr){
+  var s = document.getElementById('status');
+  s.textContent = msg; s.className = isErr ? 'err' : '';
+}
+window.onerror = function(m,src,line){ say('Script error: ' + m + ' (line ' + line + ')', true); };
+
+/* ------------------------------------------------------------------ loading */
+document.getElementById('picker').addEventListener('change', function(ev){
+  var files = Array.prototype.slice.call(ev.target.files || []);
+  if (!files.length){ say('No files selected.', true); return; }
+  var pending = files.length, notes = [];
+  files.forEach(function(f){
+    if (f.name.toLowerCase().slice(-4) === '.wav'){
+      wavs[f.name] = URL.createObjectURL(f);
+      notes.push('audio: ' + f.name);
+      if (--pending === 0) finish(notes);
+      return;
+    }
+    var rd = new FileReader();
+    rd.onload = function(){
+      try {
+        var j = JSON.parse(rd.result);
+        if (!j.regions || !j.source) notes.push('SKIPPED (not an asset file): ' + f.name);
+        else { assets[j.source.wav] = j; notes.push('asset: ' + f.name + ' (' + j.regions.length + ' regions)'); }
+      } catch(e){ notes.push('COULD NOT PARSE: ' + f.name + ' — ' + e.message); }
+      if (--pending === 0) finish(notes);
+    };
+    rd.onerror = function(){ notes.push('COULD NOT READ: ' + f.name); if (--pending === 0) finish(notes); };
+    rd.readAsText(f);
+  });
+});
+
+function finish(notes){
+  var n = Object.keys(assets).length;
+  say(notes.join('\n') + '\n\n' + n + ' asset file(s) loaded, ' + Object.keys(wavs).length + ' audio file(s).', n === 0);
+  try { render(); } catch(e){ say('Rendering failed: ' + e.message, true); }
+}
+
+function render(){
+  var host = document.getElementById('regions');
+  host.innerHTML = '';
+  Object.keys(assets).sort().forEach(function(wav){
+    var a = assets[wav];
+    a.regions.forEach(function(reg, ri){ host.appendChild(buildCard(a, reg, ri)); });
+  });
+}
+
+/* -------------------------------------------------------------------- card */
+function buildCard(a, reg, ri){
+  var frames = reg.frames || [];
+  var drafted = frames.filter(function(f){ return f.draft_hz != null && f.draft_semitones != null; });
+  var flagged = frames.filter(function(f){ return f.flags && f.flags.length; });
+  var counts = {};
+  frames.forEach(function(f){ (f.flags||[]).forEach(function(q){ counts[q] = (counts[q]||0)+1; }); });
+
+  // view state for this card — plot geometry, playhead, and time selection
+  var st = { playT: null, selA: null, selB: null, dragging: false,
+             t0: 0, t1: 1, lo: -1, hi: 1, W: 900, H: 420, padL: 90, padR: 20 };
+  if (drafted.length){
+    var ts = drafted.map(function(f){ return f.t_ms; });
+    var ss = drafted.map(function(f){ return f.draft_semitones; });
+    st.t0 = Math.min.apply(null, ts); st.t1 = Math.max.apply(null, ts);
+    st.lo = Math.min.apply(null, ss) - 2; st.hi = Math.max.apply(null, ss) + 2;
+  } else {
+    st.t0 = reg.rime_start_s * 1000; st.t1 = reg.region_end_s * 1000;
+  }
+
+  var d = document.createElement('div');
+  d.className = 'card';
+
+  var h = document.createElement('div');
+  h.innerHTML = '<b>' + a.segmentation.syllable + ' T' + a.segmentation.lexical_tone + '</b> ' +
+    '<span class="small">' + a.source.wav + ' · region ' + (ri+1) + ' · rime ' +
+    reg.rime_start_s.toFixed(3) + '–' + reg.region_end_s.toFixed(3) + ' s (' +
+    reg.rime_duration_ms + ' ms; ' + reg.excluded_onset_ms + ' ms of /m/ onset excluded; SNR ' +
+    reg.region_snr_db + ' dB)</span>';
+  d.appendChild(h);
+
+  var p = document.createElement('p');
+  p.className = 'small';
+  p.innerHTML = drafted.length + ' of ' + frames.length + ' frames have a draft value. ' +
+    '<b style="color:#C3402B">' + flagged.length + ' frames flagged.</b> ' +
+    Object.keys(counts).map(function(k){ return '<span class="flag">' + k + ' ×' + counts[k] + '</span>'; }).join('');
+  d.appendChild(p);
+
+  // (4) prominent decision banner
+  var banner = document.createElement('div');
+  banner.className = 'decision';
+  d.appendChild(banner);
+
+  var cv = document.createElement('canvas');
+  d.appendChild(cv);
+
+  var selInfo = document.createElement('p');
+  selInfo.className = 'small';
+  selInfo.textContent = 'Drag across the plot to select a time span (time only — pitch cannot be edited).';
+  d.appendChild(selInfo);
+
+  var dg = document.createElement('p');
+  dg.className = 'small';
+  var D = reg.diagnostics || {};
+  dg.textContent = 'Diagnostics (advisory only — they cannot block your decision): cyc ' +
+    (D.cyc_at_draft || '-') + ' · OEA2@candidate ' + (D.oea2_at_draft || '-') +
+    ' · OEA2@half ' + (D.oea2_at_half || '-') + ' (P=' + D.oea2_P_half_db + ')';
+  d.appendChild(dg);
+
+  /* ---------------------------------------------------- audio & playback */
+  var audio = null, rafId = null;
+  var url = wavs[a.source.wav];
+  if (url){ audio = new Audio(url); audio.preload = 'auto'; }
+
+  function stopPlay(){
+    if (audio){ audio.pause(); }
+    if (rafId){ cancelAnimationFrame(rafId); rafId = null; }
+    d.className = 'card';
+    st.playT = null; drawAll();
+  }
+
+  function playRange(a0, b0){
+    if (!audio){ say('Load ' + a.source.wav + ' alongside the JSON to listen.', true); return; }
+    var start = Math.max(0, a0), end = b0;
+    stopPlay();
+    audio.currentTime = start;
+    d.className = 'card playing';
+    var step = function(){
+      st.playT = audio.currentTime * 1000;
+      drawAll();
+      if (audio.currentTime >= end || audio.ended){ stopPlay(); return; }
+      rafId = requestAnimationFrame(step);
+    };
+    var pr = audio.play();
+    if (pr && pr.catch) pr.catch(function(e){ say('Playback blocked: ' + e.message, true); stopPlay(); });
+    rafId = requestAnimationFrame(step);
+  }
+
+  var playP = document.createElement('p');
+  function mkBtn(label, cls, fn, disabled){
+    var b = document.createElement('button');
+    b.textContent = label; if (cls) b.className = cls;
+    if (disabled) b.disabled = true;
+    b.addEventListener('click', fn);
+    return b;
+  }
+  // (1) region only   (2) region + context
+  playP.appendChild(mkBtn('▶ Play this region', '', function(){
+    playRange(reg.region_start_s, reg.region_end_s); }, !url));
+  playP.appendChild(mkBtn('▶ Play with context', '', function(){
+    playRange(reg.region_start_s - CONTEXT_S, reg.region_end_s + CONTEXT_S); }, !url));
+  playP.appendChild(mkBtn('■ Stop', '', stopPlay, !url));
+  var playSel = mkBtn('▶ Play selected span', '', function(){
+    if (st.selA == null || st.selB == null) return;
+    playRange(Math.min(st.selA, st.selB)/1000, Math.max(st.selA, st.selB)/1000); }, true);
+  playP.appendChild(playSel);
+  if (!url){
+    var note = document.createElement('span');
+    note.className = 'small';
+    note.textContent = '  (load ' + a.source.wav + ' to enable playback)';
+    playP.appendChild(note);
+  }
+  d.appendChild(playP);
+
+  /* ------------------------------------------------------------ decisions */
+  var sel = document.createElement('select');
+  REASONS.forEach(function(r){ var o = document.createElement('option'); o.textContent = r; sel.appendChild(o); });
+
+  function record(action, extra, bannerText){
+    var entry = { region: a.source.wav + ' #' + (ri+1),
+                  source_wav: a.source.wav, region_index: ri,
+                  region_start_s: reg.region_start_s, region_end_s: reg.region_end_s,
+                  action: action, reason: sel.value,
+                  timestamp: new Date().toISOString() };
+    if (extra) for (var k in extra) entry[k] = extra[k];
+    LOG.push(entry);
+    banner.textContent = bannerText;
+    banner.className = 'decision show d-' + action;
+    document.getElementById('log').textContent = LOG.map(function(l){
+      return l.timestamp + '  ' + l.region + '  ' + l.action +
+             (l.span_start_ms != null ? '  span ' + l.span_start_ms.toFixed(0) + '–' + l.span_end_ms.toFixed(0) + ' ms' : '') +
+             '  [' + l.reason + ']';
+    }).join('\n');
+  }
+
+  var bp = document.createElement('p');
+  bp.appendChild(mkBtn('APPROVE measured region', 'go', function(){
+    record('APPROVE', null, '✓ APPROVED — this region\'s measured contour is accepted [' + sel.value + ']'); }));
+  bp.appendChild(mkBtn('SELECT measured branch', '', function(){
+    record('SELECT_BRANCH', null, '◆ BRANCH SELECTED — reviewer chose a measured alternative [' + sel.value + ']'); }));
+  bp.appendChild(mkBtn('NULL this region', '', function(){
+    record('NULL', null, '∅ NULLED — the whole region becomes a gap in the target [' + sel.value + ']'); }));
+  bp.appendChild(mkBtn('ANNOTATE', '', function(){
+    record('ANNOTATE', null, '✎ ANNOTATED — noted without changing the measured contour [' + sel.value + ']'); }));
+  bp.appendChild(mkBtn('REJECT take', 'warn', function(){
+    record('REJECT_TAKE', null, '✕ TAKE REJECTED — this recording should not be used [' + sel.value + ']'); }));
+  d.appendChild(bp);
+
+  // (5) + (6) sub-span null
+  var spanBtn = mkBtn('∅ NULL selected span', '', function(){
+    if (st.selA == null || st.selB == null) return;
+    var lo = Math.min(st.selA, st.selB), hi = Math.max(st.selA, st.selB);
+    var dur = reg.rime_duration_ms || 0, base = reg.rime_start_s * 1000;
+    record('NULL_SPAN', {
+      span_start_ms: lo, span_end_ms: hi, span_duration_ms: +(hi - lo).toFixed(1),
+      span_start_normalized: dur ? +(((lo - base) / dur)).toFixed(4) : null,
+      span_end_normalized:   dur ? +(((hi - base) / dur)).toFixed(4) : null,
+      frames_affected: frames.filter(function(f){ return f.t_ms >= lo && f.t_ms <= hi; }).length
+    }, '∅ SPAN NULLED — ' + lo.toFixed(0) + '–' + hi.toFixed(0) + ' ms (' + (hi-lo).toFixed(0) +
+       ' ms) becomes a gap [' + sel.value + ']');
+  }, true);
+  var clearBtn = mkBtn('Clear selection', '', function(){
+    st.selA = st.selB = null; updateSel(); drawAll(); });
+  var sp = document.createElement('p');
+  sp.appendChild(spanBtn); sp.appendChild(clearBtn);
+  d.appendChild(sp);
+
+  var rp = document.createElement('p');
+  rp.className = 'small';
+  rp.appendChild(document.createTextNode('reason: '));
+  rp.appendChild(sel);
+  d.appendChild(rp);
+
+  /* ------------------------------------------------------ selection input */
+  function xToMs(clientX){
+    var r = cv.getBoundingClientRect();
+    var frac = (clientX - r.left) / (r.width || 1);
+    var usable = (st.W - st.padL - st.padR) / st.W;
+    var f2 = (frac - st.padL / st.W) / (usable || 1);
+    return st.t0 + Math.max(0, Math.min(1, f2)) * (st.t1 - st.t0);
+  }
+  function updateSel(){
+    var has = st.selA != null && st.selB != null && Math.abs(st.selB - st.selA) > 1;
+    spanBtn.disabled = !has;
+    playSel.disabled = !has || !url;
+    selInfo.textContent = has
+      ? ('Selected span: ' + Math.min(st.selA,st.selB).toFixed(0) + '–' +
+         Math.max(st.selA,st.selB).toFixed(0) + ' ms (' + Math.abs(st.selB-st.selA).toFixed(0) + ' ms, ' +
+         frames.filter(function(f){ return f.t_ms >= Math.min(st.selA,st.selB) && f.t_ms <= Math.max(st.selA,st.selB); }).length +
+         ' frames). Time only — pitch is never edited.')
+      : 'Drag across the plot to select a time span (time only — pitch cannot be edited).';
+  }
+  cv.addEventListener('pointerdown', function(e){
+    st.dragging = true; st.selA = xToMs(e.clientX); st.selB = st.selA;
+    if (cv.setPointerCapture) { try { cv.setPointerCapture(e.pointerId); } catch(_){} }
+    updateSel(); drawAll();
+  });
+  cv.addEventListener('pointermove', function(e){
+    if (!st.dragging) return;
+    st.selB = xToMs(e.clientX); updateSel(); drawAll();
+  });
+  cv.addEventListener('pointerup', function(){ st.dragging = false; updateSel(); drawAll(); });
+  cv.addEventListener('pointercancel', function(){ st.dragging = false; updateSel(); drawAll(); });
+
+  function drawAll(){ try { draw(cv, reg, st); } catch(e){ say('Plot failed: ' + e.message, true); } }
+  setTimeout(function(){ updateSel(); drawAll(); }, 0);
+  return d;
+}
+
+/* -------------------------------------------------------------------- plot */
+function draw(cv, reg, st){
+  var W = (cv.clientWidth || 900) * 2, H = 420;
+  cv.width = W; cv.height = H;
+  st.W = W; st.H = H;
+  var padL = st.padL, padR = st.padR;
+  var ctx = cv.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  var fr = (reg.frames||[]).filter(function(f){ return f.draft_hz != null && f.draft_semitones != null; });
+  function X(v){ return ((v - st.t0) / ((st.t1 - st.t0) || 1)) * (W - padL - padR) + padL; }
+  function Y(v){ return H - 45 - ((v - st.lo) / ((st.hi - st.lo) || 1)) * (H - 75); }
+
+  // selected span shading (time only)
+  if (st.selA != null && st.selB != null){
+    var xa = X(Math.min(st.selA, st.selB)), xb = X(Math.max(st.selA, st.selB));
+    ctx.fillStyle = 'rgba(185,138,46,.22)';
+    ctx.fillRect(xa, 10, Math.max(2, xb - xa), H - 55);
+    ctx.strokeStyle = '#B98A2E'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(xa,10); ctx.lineTo(xa,H-45); ctx.moveTo(xb,10); ctx.lineTo(xb,H-45); ctx.stroke();
+  }
+
+  ctx.strokeStyle = '#D8DCD2'; ctx.lineWidth = 2; ctx.beginPath();
+  for (var g = Math.ceil(st.lo); g <= st.hi; g += 2){ ctx.moveTo(padL-5, Y(g)); ctx.lineTo(W-padR, Y(g)); }
+  ctx.stroke();
+  ctx.fillStyle = '#6C7266'; ctx.font = '20px sans-serif';
+  ctx.fillText(st.hi.toFixed(0)+' st', 8, Y(st.hi)+7);
+  ctx.fillText(st.lo.toFixed(0)+' st', 8, Y(st.lo)+7);
+  ctx.fillText(st.t0.toFixed(0)+' ms', padL, H-12);
+  ctx.fillText(st.t1.toFixed(0)+' ms', W-padR-150, H-12);
+
+  if (!fr.length){
+    ctx.fillStyle = '#6C7266'; ctx.font = '22px sans-serif';
+    ctx.fillText('no drafted frames in this region', padL+20, H/2);
+  } else {
+    ctx.strokeStyle = '#4A7A57'; ctx.lineWidth = 3; ctx.beginPath();
+    fr.forEach(function(f,i){
+      var x = X(f.t_ms), y = Y(f.draft_semitones);
+      if (i) ctx.lineTo(x,y); else ctx.moveTo(x,y);
+    });
+    ctx.stroke();
+    ctx.fillStyle = '#C3402B';
+    fr.forEach(function(f){
+      if (f.flags && f.flags.length){
+        ctx.beginPath(); ctx.arc(X(f.t_ms), Y(f.draft_semitones), 6, 0, 6.3); ctx.fill();
+      }
+    });
+  }
+
+  // (3) moving playhead
+  if (st.playT != null){
+    var px = X(st.playT);
+    if (px >= padL - 30 && px <= W - padR + 30){
+      ctx.strokeStyle = '#1F6FB2'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(px, 6); ctx.lineTo(px, H-40); ctx.stroke();
+      ctx.fillStyle = '#1F6FB2';
+      ctx.beginPath(); ctx.arc(px, 12, 8, 0, 6.3); ctx.fill();
+    }
+  }
+}
+
+document.getElementById('exportBtn').addEventListener('click', function(){
+  var payload = { review_log: LOG, exported: new Date().toISOString(),
+                  station_version: 'review-station-v3',
+                  note: 'Reviewer actions only. No pitch value was authored here; NULL_SPAN entries record a time range to be treated as a gap.' };
+  var b = new Blob([JSON.stringify(payload, null, 1)], {type:'application/json'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(b); a.download = 'review_log.json';
+  document.body.appendChild(a); a.click(); a.remove();
+});
+</script></body></html>
