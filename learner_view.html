@@ -1,0 +1,202 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>妈 — listen and look</title><style>
+:root{--sky:#F3F8F8;--ink:#20343F;--river:#2E7D8C;--gold:#C9A227;--mist:#DCE7E9;--soft:#5E7680}
+*{box-sizing:border-box}body{margin:0;background:var(--sky);color:var(--ink);
+font-family:-apple-system,"Helvetica Neue",Arial,sans-serif}
+.wrap{max-width:560px;margin:0 auto;padding:18px 14px 30px}
+.hero{display:flex;align-items:center;gap:16px;margin:6px 0 14px}
+.hanzi{font-family:"Songti SC","Noto Serif SC","Noto Serif CJK SC",serif;font-size:72px;line-height:1;font-weight:600}
+.hero .say{flex:1}
+.pinyin{font-size:1.5rem;letter-spacing:.02em}
+.tone{display:inline-block;margin-top:6px;font-size:.8rem;color:var(--river);
+border:1.5px solid var(--river);border-radius:999px;padding:3px 10px}
+.play{border:none;background:var(--river);color:#fff;font-size:1rem;border-radius:999px;
+padding:12px 18px;min-width:110px}
+.play:active{opacity:.75}.play:disabled{background:var(--mist);color:var(--soft)}
+.card{background:#fff;border-radius:16px;padding:14px;box-shadow:0 1px 5px rgba(32,52,63,.08);margin:10px 0}
+.eyebrow{font-size:.72rem;letter-spacing:.13em;color:var(--soft);text-transform:uppercase;margin:0 0 8px}
+canvas{width:100%;display:block}
+.legend{display:flex;gap:16px;align-items:center;font-size:.8rem;color:var(--soft);margin-top:8px;flex-wrap:wrap}
+.key{display:inline-block;width:22px;height:0;border-top:4px solid var(--river);border-radius:2px;vertical-align:middle;margin-right:6px}
+.keyn{display:inline-block;width:18px;height:12px;border-radius:3px;vertical-align:middle;margin-right:6px;
+background:repeating-linear-gradient(45deg,#c3d2d5 0 3px,#eef4f5 3px 6px)}
+.covrow{display:flex;align-items:center;gap:10px;margin-top:12px}
+.covbar{flex:1;height:8px;border-radius:999px;background:var(--mist);overflow:hidden}
+.covfill{height:100%;background:var(--gold);border-radius:999px}
+.covtxt{font-size:.8rem;color:var(--soft);white-space:nowrap}
+details{margin-top:6px}summary{font-size:.85rem;color:var(--soft);cursor:pointer}
+.info{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:.85rem;margin-top:8px}
+.info b{font-weight:600}.info span{color:var(--soft)}
+.preview{font-size:.75rem;color:#8a6d1f;background:#f7efd8;border-radius:8px;padding:8px 10px;margin-top:10px}
+.loader{margin-top:14px;font-size:.8rem;color:var(--soft)}
+.loader input{display:block;margin:6px 0;font-size:.8rem}
+</style></head><body><div class="wrap">
+<div class="hero">
+  <div class="hanzi" id="hz">妈</div>
+  <div class="say"><div class="pinyin" id="py">mā</div>
+  <div class="tone" id="tn">First tone</div></div>
+  <button class="play" id="play" disabled>▶ Listen</button>
+</div>
+<div class="card">
+  <p class="eyebrow" id="ttl">How the voice moves on the vowel</p>
+  <canvas id="cv" width="1060" height="380"></canvas>
+  <div class="legend" id="legend">
+    <span><span class="key"></span>the speaker's pitch</span>
+    <span id="nullkey" style="display:none"><span class="keyn"></span>can't be measured here (natural voice texture)</span>
+  </div>
+  <div class="covrow"><div class="covbar"><div class="covfill" id="covfill" style="width:0%"></div></div>
+  <div class="covtxt" id="covtxt"></div></div>
+  <div id="pnote" class="preview" style="display:none">Preview: this contour is a demonstration measurement. Load the permanent reference asset below to show the approved analysis.</div>
+  <details><summary>Details</summary><div class="info" id="info"></div></details>
+</div>
+<div class="card loader">
+  <p class="eyebrow">Reference files (development loader)</p>
+  Reference asset (JSON): <input type="file" id="assetfile" accept=".json">
+  Recording (WAV): <input type="file" id="wavfile" accept=".wav" disabled>
+  <div id="lstatus"></div>
+</div>
+</div>
+<script>
+/* ---- state ---- */
+var VIEW = null, AUDIOBUF=null, ACTX=null, EVENT=null;
+var PREVIEW_FRAMES = [[12.5, 275.9], [22.5, 280.7], [32.5, 282.4], [42.5, 284.0], [52.5, 285.7], [62.5, 285.7], [72.5, 289.2], [82.5, 290.9], [92.5, 290.9], [102.5, 292.7], [112.5, 292.7], [122.5, 292.7], [132.5, 296.3], [142.5, 294.5], [152.5, 296.3], [162.5, 294.5], [172.5, 294.5], [182.5, 296.3], [192.5, 296.3], [202.5, 296.3], [212.5, 294.5], [222.5, 294.5], [232.5, 294.5], [242.5, 294.5], [252.5, 294.5], [262.5, 292.7], [272.5, 294.5], [282.5, 292.7], [292.5, 292.7], [302.5, 296.3], [312.5, 298.1], [322.5, 298.1], [332.5, 296.3], [342.5, 292.7], [352.5, 279.1], [362.5, null], [372.5, null], [382.5, null]];
+
+/* ---- adapter: permanent asset -> view model (fail closed) ---- */
+function adapt(asset){
+  if (asset.type !== "ReferenceAlignment") throw new Error("not a ReferenceAlignment asset");
+  var syl = asset.syllables[0];
+  var an = asset.analyses || {};
+  var keys = Object.keys(an);
+  if (keys.length === 0) throw new Error("no analysis attached to this asset yet");
+  // look for a pitch analysis: an object with a frames array carrying f0 values
+  var pk=null, frames=null, version=null;
+  for (var i=0;i<keys.length;i++){
+    var cand = an[keys[i]];
+    var fr = cand && (cand.frames || cand.samples || cand.contour);
+    if (fr && fr.length){ pk=keys[i]; frames=fr; version = cand.version || cand.analysis_version || keys[i]; break; }
+  }
+  if (!frames) throw new Error("no recognizable pitch analysis found (looked for frames/samples/contour under analyses.*)");
+  var sr = asset.source.sample_rate;
+  var r0 = syl.rime.start_sample, r1 = syl.rime.end_sample;
+  var pts = [];
+  for (var j=0;j<frames.length;j++){
+    var f = frames[j];
+    var t = (f.t_ms!=null)?f.t_ms : (f.sample!=null)?(f.sample-r0)/(sr/1000) : (Array.isArray(f)?f[0]:null);
+    var hz = (f.f0_hz!==undefined)?f.f0_hz : (f.f0!==undefined)?f.f0 : (Array.isArray(f)?f[1]:undefined);
+    if (t==null || hz===undefined) throw new Error("analysis frame shape not recognized");
+    pts.push([t, hz]);
+  }
+  return { id: asset.asset_id, hanzi: syl.hanzi, pinyin: syl.pinyin, tone: syl.lexical_tone,
+    rime_ms: (r1-r0)/(sr/1000), frames: pts, version: String(version), preview:false,
+    source_sha: asset.source.sha256, event:[asset.stage_a.event_start_sample, asset.stage_a.event_end_sample], sr:sr };
+}
+function previewModel(){
+  return { id:"FA_001_ma1.ra1", hanzi:"妈", pinyin:"mā", tone:1, rime_ms:395.9,
+    frames: PREVIEW_FRAMES, version:"preview measurement", preview:true,
+    source_sha:"901cf9054073bfcfdaf56a2af7200c5de31a97967ecd746db1d0337c0caf3ea8",
+    event:[33840,58800], sr:48000 };
+}
+/* ---- render ---- */
+var TONE_NAMES={1:"First tone",2:"Second tone",3:"Third tone",4:"Fourth tone"};
+function render(v){
+  VIEW=v;
+  document.getElementById('hz').textContent=v.hanzi;
+  document.getElementById('py').textContent=v.pinyin;
+  document.getElementById('tn').textContent=TONE_NAMES[v.tone]||("Tone "+v.tone);
+  var meas=[], total=v.frames.length, got=0, lo=1e9, hi=0;
+  for (var i=0;i<total;i++){ var f0=v.frames[i][1];
+    if (f0){ got++; if(f0<lo)lo=f0; if(f0>hi)hi=f0; } }
+  var cov = total? Math.round(100*got/total) : 0;
+  drawContour(v, lo, hi);
+  document.getElementById('covfill').style.width=cov+"%";
+  document.getElementById('covtxt').textContent="pitch measured across "+cov+"% · "+(v.rime_ms/1000).toFixed(2)+" s";
+  document.getElementById('nullkey').style.display = (got<total)?"inline":"none";
+  document.getElementById('pnote').style.display = v.preview?"block":"none";
+  var info = document.getElementById('info');
+  info.innerHTML="";
+  var rows=[["Recording", v.id.replace(".ra1","")],["Syllable", v.hanzi+" ("+v.pinyin+")"],
+    ["Tone", String(v.tone)],["Vowel length", Math.round(v.rime_ms)+" ms"],
+    ["Measured", cov+"%"],["Pitch range", got? (Math.round(lo)+"–"+Math.round(hi)+" Hz") : "—"],
+    ["Analysis", v.version]];
+  for (var r=0;r<rows.length;r++){
+    var b=document.createElement('b'); b.textContent=rows[r][0];
+    var s=document.createElement('span'); s.textContent=rows[r][1];
+    info.appendChild(b); info.appendChild(s);
+  }
+}
+function drawContour(v, lo, hi){
+  var c=document.getElementById('cv'), g=c.getContext('2d');
+  var W=c.width, H=c.height, padL=54, padR=16, padT=26, padB=34;
+  g.clearRect(0,0,W,H);
+  /* sky band: soft vertical gradient hinting higher/lower */
+  var gr=g.createLinearGradient(0,padT,0,H-padB);
+  gr.addColorStop(0,"#EAF3F4"); gr.addColorStop(1,"#F8FBFB");
+  g.fillStyle=gr; g.fillRect(padL,padT,W-padL-padR,H-padT-padB);
+  g.fillStyle="#5E7680"; g.font="20px -apple-system,Arial";
+  g.fillText("higher ↑", padL+8, padT+24);
+  g.fillText("lower ↓", padL+8, H-padB-10);
+  var span = Math.max(hi-lo, 40);                 /* at least ~2.5 st of visual range */
+  var mid=(hi+lo)/2, top=mid+span*0.75, bot=mid-span*0.75;
+  function X(t){ return padL + (t/v.rime_ms)*(W-padL-padR); }
+  function Y(f){ return padT + (top-f)/(top-bot)*(H-padT-padB); }
+  /* null bands */
+  var fw = v.frames.length>1 ? (v.frames[1][0]-v.frames[0][0]) : 10;
+  g.fillStyle="#dfe9ea";
+  for (var i=0;i<v.frames.length;i++) if (!v.frames[i][1]){
+    var x0=X(Math.max(0,v.frames[i][0]-fw/2)), x1=X(Math.min(v.rime_ms,v.frames[i][0]+fw/2));
+    g.fillRect(x0,padT,x1-x0,H-padT-padB);
+    g.strokeStyle="#c3d2d5"; g.lineWidth=1;
+    for (var hx=x0-14; hx<x1; hx+=7){ g.beginPath(); g.moveTo(hx,H-padB); g.lineTo(hx+14,padT); g.stroke(); }
+  }
+  /* contour: stroke through measured points, break at nulls */
+  g.strokeStyle="#2E7D8C"; g.lineWidth=7; g.lineCap="round"; g.lineJoin="round";
+  var open=false; g.beginPath();
+  for (var j=0;j<v.frames.length;j++){ var t=v.frames[j][0], f0=v.frames[j][1];
+    if (f0){ if(!open){ g.moveTo(X(t),Y(f0)); open=true; } else g.lineTo(X(t),Y(f0)); }
+    else { if(open){ g.stroke(); g.beginPath(); open=false; } } }
+  if (open) g.stroke();
+  /* start dot */
+  for (var k=0;k<v.frames.length;k++) if (v.frames[k][1]){
+    g.fillStyle="#C9A227"; g.beginPath();
+    g.arc(X(v.frames[k][0]),Y(v.frames[k][1]),8,0,7); g.fill(); break; }
+  /* time caption */
+  g.fillStyle="#5E7680"; g.font="18px -apple-system,Arial";
+  g.fillText("start of the vowel", padL, H-8);
+  var lbl="end  ·  "+(v.rime_ms/1000).toFixed(2)+" s";
+  g.fillText(lbl, W-padR-g.measureText(lbl).width, H-8);
+}
+/* ---- audio ---- */
+function playFull(){
+  if(!AUDIOBUF||!VIEW)return;
+  ACTX=ACTX||new (window.AudioContext||window.webkitAudioContext)();
+  var n=ACTX.createBufferSource(); n.buffer=AUDIOBUF; n.connect(ACTX.destination);
+  n.start(0, VIEW.event[0]/VIEW.sr, (VIEW.event[1]-VIEW.event[0])/VIEW.sr);
+}
+document.getElementById('play').onclick=playFull;
+/* ---- loaders (modern browsers only; screenshot path never runs these) ---- */
+if (window.File && window.crypto && window.crypto.subtle){
+  document.getElementById('assetfile').addEventListener('change', function(e){
+    var f=e.target.files[0]; if(!f)return;
+    f.text().then(function(txt){
+      try { var v=adapt(JSON.parse(txt)); render(v);
+        document.getElementById('lstatus').textContent="✓ Permanent analysis loaded ("+v.version+"). Now load "+v.id.replace(".ra1","")+".wav to enable Listen.";
+        document.getElementById('wavfile').disabled=false;
+      } catch(err){ document.getElementById('lstatus').textContent="✗ asset rejected: "+err.message; }
+    });});
+  document.getElementById('wavfile').addEventListener('change', function(e){
+    var f=e.target.files[0]; if(!f||!VIEW)return;
+    f.arrayBuffer().then(function(ab){
+      return crypto.subtle.digest('SHA-256', ab.slice(0)).then(function(h){
+        var hex=Array.prototype.map.call(new Uint8Array(h),function(b){return ('0'+b.toString(16)).slice(-2)}).join('');
+        if (hex!==VIEW.source_sha){ document.getElementById('lstatus').textContent="✗ this WAV is not the asset's source recording"; return; }
+        ACTX=ACTX||new (window.AudioContext||window.webkitAudioContext)();
+        return ACTX.decodeAudioData(ab).then(function(b){ AUDIOBUF=b;
+          document.getElementById('play').disabled=false;
+          document.getElementById('lstatus').textContent="✓ Recording verified — Listen is ready."; });
+      });
+    });});
+}
+/* boot in preview mode */
+render(previewModel());
+</script></body></html>
