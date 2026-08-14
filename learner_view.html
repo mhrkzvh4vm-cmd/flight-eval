@@ -53,6 +53,7 @@ details{margin-top:6px}summary{font-size:.85rem;color:var(--soft);cursor:pointer
 <div class="card loader">
   <p class="eyebrow">Reference files (development loader)</p>
   Reference asset (JSON): <input type="file" id="assetfile" accept=".json">
+  Analysis file, only if stored separately (JSON): <input type="file" id="anafile" accept=".json" disabled>
   Recording (WAV): <input type="file" id="wavfile" accept=".wav" disabled>
   <div id="lstatus"></div>
 </div>
@@ -62,34 +63,74 @@ details{margin-top:6px}summary{font-size:.85rem;color:var(--soft);cursor:pointer
 var VIEW = null, AUDIOBUF=null, ACTX=null, EVENT=null;
 var PREVIEW_FRAMES = [[12.5, 275.9], [22.5, 280.7], [32.5, 282.4], [42.5, 284.0], [52.5, 285.7], [62.5, 285.7], [72.5, 289.2], [82.5, 290.9], [92.5, 290.9], [102.5, 292.7], [112.5, 292.7], [122.5, 292.7], [132.5, 296.3], [142.5, 294.5], [152.5, 296.3], [162.5, 294.5], [172.5, 294.5], [182.5, 296.3], [192.5, 296.3], [202.5, 296.3], [212.5, 294.5], [222.5, 294.5], [232.5, 294.5], [242.5, 294.5], [252.5, 294.5], [262.5, 292.7], [272.5, 294.5], [282.5, 292.7], [292.5, 292.7], [302.5, 296.3], [312.5, 298.1], [322.5, 298.1], [332.5, 296.3], [342.5, 292.7], [352.5, 279.1], [362.5, null], [372.5, null], [382.5, null]];
 
-/* ---- adapter: permanent asset -> view model (fail closed) ---- */
-function adapt(asset){
-  if (asset.type !== "ReferenceAlignment") throw new Error("not a ReferenceAlignment asset");
-  var syl = asset.syllables[0];
-  var an = asset.analyses || {};
-  var keys = Object.keys(an);
-  if (keys.length === 0) throw new Error("no analysis attached to this asset yet");
-  // look for a pitch analysis: an object with a frames array carrying f0 values
-  var pk=null, frames=null, version=null;
-  for (var i=0;i<keys.length;i++){
-    var cand = an[keys[i]];
-    var fr = cand && (cand.frames || cand.samples || cand.contour);
-    if (fr && fr.length){ pk=keys[i]; frames=fr; version = cand.version || cand.analysis_version || keys[i]; break; }
+/* ---- adapter v1.1: tolerant + diagnostic (fail closed, never guess silently) ---- */
+function topKeys(o){ try{return Object.keys(o).slice(0,12).join(", ")}catch(e){return "?"} }
+function diag(msg,obj){ return msg+"  ·  found type: "+JSON.stringify(obj&&obj.type)+"; top-level keys: ["+topKeys(obj)+"].  If this IS the current permanent format, send this whole message back so the viewer can be adapted to it."; }
+function unwrap(raw){ if (raw && raw.asset && typeof raw.asset==="object") return raw.asset; return raw; }
+function isRefAsset(a){
+  var t=String(a.type||a.asset_type||"").toLowerCase().replace(/[^a-z]/g,"");
+  if (t.indexOf("referencealignment")>=0) return true;
+  if (!t && a.syllables && a.source) return true;   /* typeless but structurally a reference asset */
+  return false;
+}
+function findPitch(container){
+  if (!container) return null;
+  var pools=[];
+  if (container.analyses && typeof container.analyses==="object") pools.push(container.analyses);
+  if (container.analysis) pools.push({analysis:container.analysis});
+  pools.push({self:container});
+  var FKEYS=["frames","samples","contour","points","track","f0_frames"];
+  for (var p=0;p<pools.length;p++){
+    var pool=pools[p], keys=Object.keys(pool);
+    for (var i=0;i<keys.length;i++){
+      var cand=pool[keys[i]]; if(!cand||typeof cand!=="object") continue;
+      for (var k=0;k<FKEYS.length;k++){
+        var fr=cand[FKEYS[k]];
+        if (fr && fr.length){ return {frames:fr, version:String(cand.version||cand.analysis_version||keys[i]), meta:cand}; }
+      }
+      if (cand.length && (cand[0].f0_hz!==undefined||cand[0].f0!==undefined||Array.isArray(cand[0])))
+        return {frames:cand, version:String(keys[i]), meta:{}};
+    }
   }
-  if (!frames) throw new Error("no recognizable pitch analysis found (looked for frames/samples/contour under analyses.*)");
-  var sr = asset.source.sample_rate;
-  var r0 = syl.rime.start_sample, r1 = syl.rime.end_sample;
-  var pts = [];
-  for (var j=0;j<frames.length;j++){
-    var f = frames[j];
-    var t = (f.t_ms!=null)?f.t_ms : (f.sample!=null)?(f.sample-r0)/(sr/1000) : (Array.isArray(f)?f[0]:null);
-    var hz = (f.f0_hz!==undefined)?f.f0_hz : (f.f0!==undefined)?f.f0 : (Array.isArray(f)?f[1]:undefined);
-    if (t==null || hz===undefined) throw new Error("analysis frame shape not recognized");
-    pts.push([t, hz]);
+  return null;
+}
+function frameToPoint(f, rimeStart, rimeMs, srPerMs, baseHz){
+  var t=null, hz;
+  if (Array.isArray(f)){ t=f[0]; hz=f[1]; }
+  else {
+    if (f.t_ms!=null)t=f.t_ms; else if (f.time_ms!=null)t=f.time_ms; else if (f.ms!=null)t=f.ms;
+    else if (f.t!=null)t=f.t; else if (f.sample!=null)t=(f.sample-rimeStart)/srPerMs;
+    if (f.f0_hz!==undefined)hz=f.f0_hz; else if (f.f0!==undefined)hz=f.f0;
+    else if (f.hz!==undefined)hz=f.hz;
+    else if (f.st!==undefined) hz=(f.st==null||baseHz==null)?null:baseHz*Math.pow(2,f.st/12);
   }
-  return { id: asset.asset_id, hanzi: syl.hanzi, pinyin: syl.pinyin, tone: syl.lexical_tone,
-    rime_ms: (r1-r0)/(sr/1000), frames: pts, version: String(version), preview:false,
-    source_sha: asset.source.sha256, event:[asset.stage_a.event_start_sample, asset.stage_a.event_end_sample], sr:sr };
+  if (t==null || hz===undefined) throw new Error("analysis frame shape not recognized (example frame: "+JSON.stringify(f).slice(0,120)+")");
+  return [t, hz];
+}
+function adapt(raw, extraAnalysis){
+  var asset = unwrap(raw);
+  if (!isRefAsset(asset)) throw new Error(diag("Not recognized as a reference asset.", asset));
+  if (!asset.syllables || !asset.syllables.length) throw new Error(diag("Reference asset has no syllables array.", asset));
+  var syl=asset.syllables[0];
+  var sr=(asset.source&&asset.source.sample_rate)||48000;
+  var r0=syl.rime.start_sample, r1=syl.rime.end_sample, rimeMs=(r1-r0)/(sr/1000);
+  var baseHz = asset.speaker_baseline_hz || (asset.baseline&&(asset.baseline.hz||asset.baseline.reference_hz)) || null;
+  var found = findPitch(asset) || findPitch(extraAnalysis?unwrap(extraAnalysis):null);
+  if (!found){
+    if (!asset.analyses || Object.keys(asset.analyses).length===0)
+      throw new Error("This asset has no analysis attached (analyses is empty). Load the analysis file separately below, or load the analyses-attached asset.");
+    throw new Error(diag("No recognizable pitch analysis found under analyses.*", asset.analyses));
+  }
+  var pts=[];
+  for (var j=0;j<found.frames.length;j++) pts.push(frameToPoint(found.frames[j], r0, rimeMs, sr/1000, baseHz));
+  var lo=1e9,hi=-1e9,inR=0;
+  for (var q=0;q<pts.length;q++){ var t=pts[q][0]; if(t>=-1&&t<=rimeMs+1)inR++; if(t<lo)lo=t; if(t>hi)hi=t; }
+  if (inR < pts.length*0.5) throw new Error("Analysis frame times don't line up with the rime (frames span "+Math.round(lo)+".."+Math.round(hi)+" ms, rime is 0.."+Math.round(rimeMs)+" ms). Send this message back so the time base can be adapted.");
+  var ver=found.version;
+  return { id: asset.asset_id||"reference", hanzi: syl.hanzi, pinyin: syl.pinyin, tone: syl.lexical_tone,
+    rime_ms: rimeMs, frames: pts, version: ver,
+    preview: /preview/i.test(ver) || /PREVIEW/.test(String(asset.asset_id||"")),
+    source_sha: asset.source&&asset.source.sha256, event:[asset.stage_a.event_start_sample, asset.stage_a.event_end_sample], sr:sr };
 }
 function previewModel(){
   return { id:"FA_001_ma1.ra1", hanzi:"妈", pinyin:"mā", tone:1, rime_ms:395.9,
@@ -176,13 +217,24 @@ function playFull(){
 document.getElementById('play').onclick=playFull;
 /* ---- loaders (modern browsers only; screenshot path never runs these) ---- */
 if (window.File && window.crypto && window.crypto.subtle){
+  document.getElementById('anafile').addEventListener('change', function(e){
+    var f=e.target.files[0]; if(!f)return;
+    f.text().then(function(txt){
+      try { var base = window._pendingAsset || null;
+        var v = base ? adapt(base, JSON.parse(txt)) : adapt(JSON.parse(txt));
+        render(v);
+        document.getElementById('lstatus').textContent="✓ Analysis loaded ("+v.version+").";
+        document.getElementById('wavfile').disabled=false;
+      } catch(err){ document.getElementById('lstatus').textContent="✗ analysis rejected: "+err.message; }
+    });});
   document.getElementById('assetfile').addEventListener('change', function(e){
     var f=e.target.files[0]; if(!f)return;
     f.text().then(function(txt){
-      try { var v=adapt(JSON.parse(txt)); render(v);
+      try { var parsed=JSON.parse(txt); window._pendingAsset=parsed; var v=adapt(parsed); render(v);
         document.getElementById('lstatus').textContent="✓ Permanent analysis loaded ("+v.version+"). Now load "+v.id.replace(".ra1","")+".wav to enable Listen.";
-        document.getElementById('wavfile').disabled=false;
-      } catch(err){ document.getElementById('lstatus').textContent="✗ asset rejected: "+err.message; }
+        document.getElementById('wavfile').disabled=false; document.getElementById('anafile').disabled=false;
+      } catch(err){ document.getElementById('lstatus').textContent="✗ asset rejected: "+err.message;
+        window._pendingAsset = JSON.parse(txt); document.getElementById('anafile').disabled=false; }
     });});
   document.getElementById('wavfile').addEventListener('change', function(e){
     var f=e.target.files[0]; if(!f||!VIEW)return;
