@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Stage B — Where does each vowel begin?</title>
+<style>
+:root{--ink:#22251F;--paper:#FBFAF5;--bg:#EEF1EA;--line:#D8DCD2;--muted:#6C7266;
+      --green:#4A7A57;--red:#C3402B;--blue:#1F6FB2;--amber:#B98A2E}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font:17px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-text-size-adjust:100%}
+.wrap{max-width:900px;margin:0 auto;padding:14px 16px 60px}
+h1{font-size:19px;margin:0 0 4px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:16px}
+.hint{font-size:15px;color:var(--muted);margin:6px 0 0}
+button{font:inherit;font-weight:600;border-radius:14px;border:2px solid var(--line);
+  background:#fff;color:var(--ink);cursor:pointer;padding:16px 18px;min-height:60px;width:100%;
+  margin-bottom:10px;display:block;text-align:center}
+button:active{transform:scale(.99)}
+button:disabled{opacity:.4}
+button.green{background:var(--green);border-color:var(--green);color:#fff}
+button.blue{background:var(--blue);border-color:var(--blue);color:#fff}
+button.small{min-height:46px;font-size:15px;font-weight:400;color:var(--muted)}
+button small{display:block;font-weight:400;font-size:13px;opacity:.85;margin-top:3px}
+.row{display:flex;gap:10px}
+.row button{flex:1}
+canvas{width:100%;height:190px;background:#fff;border:1px solid var(--line);
+  border-radius:12px;display:block;touch-action:none}
+#times{font-size:18px;margin:12px 0 2px;font-weight:600}
+#sub{font-size:15px;color:var(--muted)}
+#status{font-size:15px;color:var(--muted);white-space:pre-wrap;margin-top:8px}
+#status.err{color:var(--red);font-weight:600}
+.step{font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:18px 0 6px}
+.badge{display:none;margin:10px 0;padding:10px 14px;border-radius:12px;font-size:15px;
+  background:#E9EFF7;color:#1F4A78;border:1px solid var(--blue)}
+.badge.show{display:block}
+.badge.adjusted{background:#FBF3E2;color:#6B5312;border-color:var(--amber)}
+.badge.saved{background:#E8F2E9;color:#2E5A39;border-color:var(--green)}
+input[type=file]{font:inherit;padding:10px;border:2px dashed var(--line);border-radius:12px;width:100%;background:#fff}
+details{margin-top:20px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+summary{cursor:pointer;color:var(--muted);font-size:15px}
+pre{white-space:pre-wrap;font-size:12px;max-height:220px;overflow:auto}
+.hidden{display:none}
+</style></head>
+<body><div class="wrap">
+
+<div class="card" id="loadCard">
+  <h1>Where does each vowel begin?</h1>
+  <p class="hint">Load the approved recordings from Stage&nbsp;A (the <b>region_selections</b> file) together with the original WAV files. Nothing is uploaded and the recordings are never changed.</p>
+  <p><input type="file" id="picker" multiple></p>
+  <div id="status">Nothing loaded yet.</div>
+</div>
+
+<div class="card hidden" id="mainCard">
+  <p class="step" style="margin-top:0">Recording <span id="itemNo">1 of 1</span></p>
+  <h1 id="fname">—</h1>
+  <p class="hint">You already know what was said. Listen, then check that each mark sits where that part's vowel begins. Move a mark only if it is clearly wrong.</p>
+  <div id="badge" class="badge"></div>
+  <canvas id="wave"></canvas>
+  <div id="times">—</div>
+  <div id="sub">—</div>
+
+  <button class="blue" id="playAll">▶ Hear the whole pronunciation</button>
+
+  <p class="step">Which vowel are you checking?</p>
+  <div class="row" id="sylRow"></div>
+  <div class="row">
+    <button id="m50">−50 ms</button>
+    <button id="m10">−10 ms</button>
+    <button id="p10">+10 ms</button>
+    <button id="p50">+50 ms</button>
+  </div>
+  <p class="hint">You can also drag the marks on the picture, but the buttons are the precise way.</p>
+
+  <p class="step">Listen to the two halves</p>
+  <button id="playOnset">▶ Just the beginning consonant<small>Everything before the mark</small></button>
+  <button id="playRime">▶ Just the vowel part<small>Everything after the mark — this is what the tone lives on</small></button>
+
+  <p class="step">Your decision</p>
+  <button class="green" id="confirm">✓ These marks are right</button>
+  <button id="reset">↺ Put the marks back<small>Back to the automatic suggestion</small></button>
+  <button class="small" id="addSyl">This has one more part than shown</button>
+  <button class="small" id="delSyl">This has one fewer part than shown</button>
+</div>
+
+<div class="card hidden" id="navCard">
+  <div class="row">
+    <button id="prevItem">← Previous</button>
+    <button id="nextItem">Next →</button>
+  </div>
+  <button id="finish">Finish and export</button>
+  <div id="progress" class="hint"></div>
+</div>
+
+<div class="card hidden" id="doneCard">
+  <h1>All recordings checked</h1>
+  <p class="hint" id="doneSummary"></p>
+  <button class="green" id="exportJson">⬇ Export Stage B records (JSON)</button>
+  <button id="back">← Back to the recordings</button>
+</div>
+
+<details><summary>Developer diagnostics</summary><pre id="devlog">(nothing yet)</pre></details>
+</div>
+<script>
+"use strict";
+/* ===================== Stage B v1 — onset/rime (vowel start) review =========
+   Input  : approved Stage A events (region-selection manifest) + source WAVs
+   Task   : confirm ONE marker per syllable — where the vowel begins
+   Output : per-syllable onset/rime spans, adjustments, provenance
+   Stage A boundaries are read-only here and are never modified.            */
+var TOOL = "stageB-onset-rime-1.0";
+var SCHEMA = "stageB-reference-1";
+var PROPOSAL_VERSION = "onset-rime-proposal-1.0";
+
+var ONSET_CONFIG = {
+  frameMs: 25, hopMs: 5,
+  nasalTiltDb: 8,          // low-band minus mid-band level marking consonantal murmur
+  vowelLevelDbBelowPeak: 10,// the vowel body sits within this of the syllable peak
+  minSyllableMs: 110,       // shorter than this is not treated as its own syllable
+  syllableDipDb: 6,         // an energy dip this deep can separate two syllables
+  maxOnsetMs: 220,          // an onset longer than this is implausible; clamp
+  vowelLowBandBelowPeakDb: 8// the vowel body carries low-frequency energy within this of its peak
+};
+
+var items = [], idx = 0, active = 0, records = {}, manifest = null, prompts = {}, confirmed = {};
+var ctxA = null, srcNode = null, rafId = null, playFrom = 0, playTo = 0, playStart = 0, dragging = null;
+
+function $(i){ return document.getElementById(i); }
+function say(m,e){ var s=$('status'); s.textContent=m; s.className=e?'err':''; }
+function dev(m){ var d=$('devlog'); d.textContent=(d.textContent==='(nothing yet)'?'':d.textContent+'\n')+m; }
+window.onerror=function(m,s,l){ say('Problem: '+m+' (line '+l+')',true); dev('ERROR '+m+' @'+l); };
+
+/* ------------------------------------------------------------ WAV reading */
+function parseWav(buf){
+  var v=new DataView(buf);
+  if(v.byteLength<44) throw new Error('file too small to be a WAV');
+  function tag(o){ return String.fromCharCode(v.getUint8(o),v.getUint8(o+1),v.getUint8(o+2),v.getUint8(o+3)); }
+  if(tag(0)!=='RIFF'||tag(8)!=='WAVE') throw new Error('not a WAVE file');
+  var p=12,fmt=null,off=-1,len=0;
+  while(p+8<=v.byteLength){ var id=tag(p),sz=v.getUint32(p+4,true);
+    if(id==='fmt ') fmt={f:v.getUint16(p+8,true),ch:v.getUint16(p+10,true),rate:v.getUint32(p+12,true),bits:v.getUint16(p+22,true)};
+    else if(id==='data'){off=p+8;len=sz;}
+    p+=8+sz+(sz%2); }
+  if(!fmt||off<0) throw new Error('WAV missing fmt or data');
+  if(fmt.f!==1||fmt.bits!==16) throw new Error('only 16-bit PCM WAV is supported');
+  var n=Math.floor(Math.min(len,v.byteLength-off)/2/fmt.ch), out=new Float32Array(n);
+  for(var i=0;i<n;i++) out[i]=v.getInt16(off+i*2*fmt.ch,true)/32768;
+  if(!n) throw new Error('WAV has no samples');
+  return {samples:out,rate:fmt.rate};
+}
+
+/* ------------- proposal: COUNT-CONSTRAINED alignment against known text -------
+   The syllable count is an INPUT taken from the prompt (one Han character = one
+   syllable), never an output of the audio. The algorithm places exactly N-1
+   internal boundaries and one vowel start per syllable. A vowel start requires
+   BOTH strong low-frequency energy (excludes fricatives and stops) and a
+   non-nasal spectral tilt (excludes the /m/ /n/ murmur); either test alone
+   mislocates one class of onset.                                              */
+function envelopes(x, rate, a, b, cfg){
+  var fl=Math.max(2,Math.round(cfg.frameMs/1000*rate)), hop=Math.max(1,Math.round(cfg.hopMs/1000*rate));
+  var env=[],tilt=[],low=[],tm=[];
+  var al=Math.exp(-2*Math.PI*500/rate), ah=Math.exp(-2*Math.PI*700/rate);
+  for(var s=a; s+fl<=b; s+=hop){
+    var acc=0, yl=0, yh=0, lo=0, hi=0;
+    for(var i=s;i<s+fl;i++){ var v=x[i]; acc+=v*v;
+      yl=al*yl+(1-al)*v; lo+=yl*yl; yh=ah*yh+(1-ah)*v; var hp=v-yh; hi+=hp*hp; }
+    env.push(20*Math.log(Math.max(Math.sqrt(acc/fl),1e-10))/Math.LN10);
+    tilt.push(10*Math.log(Math.max(lo,1e-12)/Math.max(hi,1e-12))/Math.LN10);
+    low.push(10*Math.log(Math.max(lo,1e-12))/Math.LN10);
+    tm.push((s+fl/2)/rate);
+  }
+  return {env:env,tilt:tilt,low:low,tm:tm,fl:fl,hop:hop};
+}
+function analyse(samples, rate, t0, t1, nSyl, cfg){
+  cfg = cfg || ONSET_CONFIG;
+  var a=Math.max(0,Math.round(t0*rate)), b=Math.min(samples.length,Math.round(t1*rate));
+  var E=envelopes(samples,rate,a,b,cfg), env=E.env, tm=E.tm, warn=[];
+  if(env.length < 6*nSyl) return {syllables:[{onset_start:t0,rime_start:t0,rime_end:t1}],
+                                  warnings:['This recording is too short to divide reliably.']};
+  var minf=Math.max(2,Math.round(cfg.minSyllableMs/cfg.hopMs));
+  var guard=Math.max(1,Math.round(40/cfg.hopMs));
+  var cuts=[];
+  if(nSyl>1){
+    var cand=[];
+    for(var k=minf;k<env.length-minf;k++){
+      var l=-999,r=-999;
+      for(var j=Math.max(0,k-minf);j<k;j++) if(env[j]>l) l=env[j];
+      for(var j2=k+1;j2<Math.min(env.length,k+minf+1);j2++) if(env[j2]>r) r=env[j2];
+      cand.push([Math.min(l,r)-env[k],k]);
+    }
+    cand.sort(function(p,q){return q[0]-p[0];});
+    for(var c=0;c<cand.length && cuts.length<nSyl-1;c++){
+      var kk=cand[c][1], okk=(kk>=guard && kk<=env.length-1-guard);
+      for(var m=0;m<cuts.length;m++) if(Math.abs(kk-cuts[m])<minf) okk=false;
+      if(okk) cuts.push(kk);
+    }
+    cuts.sort(function(p,q){return p-q;});
+    if(cuts.length<nSyl-1){
+      cuts=[]; var step=Math.floor(env.length/nSyl);
+      for(var i2=1;i2<nSyl;i2++) cuts.push(step*i2);
+      warn.push('The recording did not offer clear divisions, so the parts were spaced evenly — please check them.');
+    }
+  }
+  var bounds=[0].concat(cuts).concat([env.length-1]), out=[];
+  for(var i=0;i<nSyl;i++){
+    var s0=bounds[i], s1=bounds[i+1], sp=s0;
+    for(var q2=s0;q2<=s1;q2++) if(env[q2]>env[sp]) sp=q2;
+    var lpk=-999; for(var q3=s0;q3<=sp;q3++) if(E.low[q3]>lpk) lpk=E.low[q3];
+    var thr=env[sp]-cfg.vowelLevelDbBelowPeak, lthr=lpk-cfg.vowelLowBandBelowPeakDb, v=sp;
+    for(var w=s0;w<=sp;w++){
+      if(env[w]>=thr && E.low[w]>=lthr && E.tilt[w]<cfg.nasalTiltDb){ v=w; break; }
+    }
+    if((tm[v]-tm[s0])*1000>cfg.maxOnsetMs) v=Math.min(sp,s0+Math.round(cfg.maxOnsetMs/cfg.hopMs));
+    out.push({ onset_start:+(tm[s0]-cfg.frameMs/2000).toFixed(4),
+               rime_start:+(tm[v]-cfg.frameMs/2000).toFixed(4),
+               rime_end:+(tm[s1]+cfg.frameMs/2000).toFixed(4) });
+  }
+  out[0].onset_start=t0; out[nSyl-1].rime_end=t1;
+  for(var z=1;z<nSyl;z++) out[z].onset_start=out[z-1].rime_end;
+  for(var z2=0;z2<nSyl;z2++){
+    if(out[z2].rime_start<out[z2].onset_start) out[z2].rime_start=out[z2].onset_start;
+    if(out[z2].rime_start>=out[z2].rime_end) out[z2].rime_start=out[z2].onset_start;
+    if(out[z2].rime_start===out[z2].onset_start)
+      warn.push('Part '+(z2+1)+' was proposed with no beginning consonant — check whether one is missing.');
+  }
+  return {syllables:out, warnings:warn};
+}
+
+/* ------------------------------------------------------------ file loading */
+$('picker').addEventListener('change',function(ev){
+  var files=Array.prototype.slice.call(ev.target.files||[]);
+  if(!files.length){ say('Nothing selected.',true); return; }
+  var wavBufs={}, pending=files.length, notes=[];
+  files.forEach(function(f){
+    var rd=new FileReader();
+    if(/\.wav$/i.test(f.name)){
+      rd.onload=function(){ wavBufs[f.name]=rd.result; notes.push('audio: '+f.name); done(); };
+      rd.onerror=function(){ notes.push('could not read '+f.name); done(); };
+      rd.readAsArrayBuffer(f);
+    } else {
+      rd.onload=function(){ try{ var j=JSON.parse(rd.result);
+          if(j.selections){ manifest=j; notes.push('approved list: '+f.name+' ('+j.selections.length+' recordings)'); }
+          else if(j.filename && j.chinese){ prompts[j.filename]=j; notes.push('prompt: '+j.filename+' \u2014 '+j.chinese); }
+          else if(j.schema==='reference-alignment-1' && j.source && j.review && j.review.state==='approved'){
+            confirmed[j.source.file]=j;
+            notes.push('already confirmed, will be skipped: '+j.source.file+' ('+j.asset_id+')'); }
+          else notes.push('skipped (not a Stage A list or prompt): '+f.name);
+        }catch(e){ notes.push('could not read '+f.name+' — '+e.message); } done(); };
+      rd.onerror=function(){ notes.push('could not read '+f.name); done(); };
+      rd.readAsText(f);
+    }
+    function done(){ if(--pending===0) build(wavBufs,notes); }
+  });
+});
+
+function build(wavBufs,notes){
+  if(!manifest){ say(notes.join('\n')+'\n\nNo Stage A approved list was loaded.',true); return; }
+  items=[];
+  manifest.selections.forEach(function(sel){
+    if(sel.decision!=='usable') return;
+    if(confirmed[sel.source_file]) return;   // never re-propose over a confirmed alignment
+    var buf=wavBufs[sel.source_file];
+    if(!buf){ notes.push('missing audio for '+sel.source_file); return; }
+    try{
+      var w=parseWav(buf);
+      var pm=prompts[sel.source_file];
+      if(!pm){ notes.push('missing prompt metadata for '+sel.source_file+' \u2014 skipped'); return; }
+      var han=(pm.chinese||'').replace(/[^\u4e00-\u9fff]/g,'');
+      var nSyl=han.length||1;
+      var pr=analyse(w.samples,w.rate,sel.start_s,sel.end_s,nSyl,ONSET_CONFIG);
+      items.push({ name:sel.source_file, audio:w, stageA:sel, prompt:pm, hanzi:han, expected:nSyl,
+        t0:sel.start_s, t1:sel.end_s,
+        syl:JSON.parse(JSON.stringify(pr.syllables)),
+        proposed:JSON.parse(JSON.stringify(pr.syllables)),
+        warnings:pr.warnings, touched:false });
+    }catch(e){ notes.push('could not analyse '+sel.source_file+' — '+e.message); }
+  });
+  var skipped=Object.keys(confirmed).length;
+  say(notes.join('\n')+'\n\n'+items.length+' recording'+(items.length===1?'':'s')+' to review'+
+      (skipped?('; '+skipped+' skipped because they already have a confirmed alignment'):
+       '; no confirmed alignments were loaded, so ALL approved recordings are listed'),items.length===0);
+  if(!items.length) return;
+  $('mainCard').classList.remove('hidden'); $('navCard').classList.remove('hidden');
+  show(0);
+}
+
+/* -------------------------------------------------------------- rendering */
+function show(i){
+  stop(); idx=Math.max(0,Math.min(items.length-1,i)); active=0;
+  var it=items[idx];
+  $('itemNo').textContent=(idx+1)+' of '+items.length;
+  $('fname').innerHTML='<span style="font-family:\'Kaiti SC\',\'STKaiti\',serif;font-size:34px">'+
+    it.hanzi+'</span> <span style="font-family:Georgia,serif">'+(it.prompt.pinyin||'')+'</span>'+
+    ' <span class="hint" style="display:inline">\u2014 '+it.expected+' part'+(it.expected>1?'s':'')+'</span>'+
+    '<div class="hint">'+it.name+'</div>';
+  $('doneCard').classList.add('hidden'); $('mainCard').classList.remove('hidden');
+  var b=$('badge');
+  b.className='badge show'+(records[it.name]?' saved':(it.touched?' adjusted':''));
+  b.textContent=records[it.name]?'Saved':(it.touched?'Adjusted by you':
+    'Automatic suggestion — listen and adjust only if a mark is clearly wrong');
+  buildSylRow(); update(); draw();
+  var done=Object.keys(records).length;
+  $('progress').textContent=done+' of '+items.length+' checked';
+}
+function buildSylRow(){
+  var row=$('sylRow'); row.innerHTML='';
+  items[idx].syl.forEach(function(s,i){
+    var b=document.createElement('button');
+    b.textContent='Part '+(i+1);
+    if(i===active) b.className='blue';
+    b.addEventListener('click',function(){ active=i; buildSylRow(); update(); draw(); });
+    row.appendChild(b);
+  });
+}
+function update(){
+  var it=items[idx], s=it.syl[active];
+  $('times').textContent='Vowel '+(active+1)+' begins at '+s.rime_start.toFixed(3)+' s';
+  $('sub').textContent='Beginning consonant '+Math.round((s.rime_start-s.onset_start)*1000)+
+    ' ms  ·  vowel part '+Math.round((s.rime_end-s.rime_start)*1000)+' ms  ·  '+
+    it.syl.length+' part'+(it.syl.length>1?'s':'')+' in this pronunciation';
+}
+function markAdjusted(){
+  var it=items[idx]; it.touched=true;
+  var b=$('badge');
+  if(b.className.indexOf('saved')<0){ b.className='badge show adjusted'; b.textContent='Adjusted by you'; }
+}
+function nudge(ms){
+  var it=items[idx], s=it.syl[active], d=ms/1000;
+  var lo=s.onset_start, hi=s.rime_end;
+  s.rime_start=Math.max(lo,Math.min(hi,s.rime_start+d));
+  markAdjusted(); update(); draw();
+}
+$('m50').addEventListener('click',function(){nudge(-50);});
+$('m10').addEventListener('click',function(){nudge(-10);});
+$('p10').addEventListener('click',function(){nudge(10);});
+$('p50').addEventListener('click',function(){nudge(50);});
+
+function draw(playT){
+  var it=items[idx]; if(!it) return;
+  var cv=$('wave'), W=(cv.clientWidth||800)*2, H=380;
+  cv.width=W; cv.height=H;
+  var c=cv.getContext('2d'); c.clearRect(0,0,W,H);
+  var X=function(t){ return (t-it.t0)/(it.t1-it.t0)*W; }, mid=H/2;
+  var a=Math.round(it.t0*it.audio.rate), b=Math.round(it.t1*it.audio.rate);
+  var n=b-a, step=Math.max(1,Math.floor(n/W));
+  /* rime spans shaded green, onsets grey */
+  it.syl.forEach(function(s,i){
+    c.fillStyle='#EFEFEC'; c.fillRect(X(s.onset_start),0,X(s.rime_start)-X(s.onset_start),H);
+    c.fillStyle=(i===active)?'rgba(74,122,87,.20)':'rgba(74,122,87,.10)';
+    c.fillRect(X(s.rime_start),0,X(s.rime_end)-X(s.rime_start),H);
+  });
+  c.strokeStyle='#8C948A'; c.lineWidth=1; c.beginPath();
+  for(var x=0;x<W;x++){ var i0=a+Math.floor(x/W*n), lo=0, hi=0;
+    for(var k=0;k<step;k++){ var v=it.audio.samples[i0+k]||0; if(v<lo)lo=v; if(v>hi)hi=v; }
+    c.moveTo(x,mid-hi*mid*.92); c.lineTo(x,mid-lo*mid*.92); }
+  c.stroke();
+  it.syl.forEach(function(s,i){
+    var xx=X(s.rime_start);
+    c.strokeStyle=(i===active)?'#1F6FB2':'#4A7A57'; c.lineWidth=(i===active)?8:5;
+    c.beginPath(); c.moveTo(xx,0); c.lineTo(xx,H); c.stroke();
+    c.fillStyle=c.strokeStyle; c.beginPath(); c.arc(xx,26,22,0,6.3); c.fill();
+    c.fillStyle='#fff'; c.font='bold 22px sans-serif'; c.textAlign='center';
+    c.fillText(String(i+1),xx,34); c.textAlign='start';
+  });
+  if(playT!=null){ var px=X(playT); c.strokeStyle='#C3402B'; c.lineWidth=5;
+    c.beginPath(); c.moveTo(px,0); c.lineTo(px,H); c.stroke(); }
+}
+window.addEventListener('resize',function(){ if(items.length) draw(); });
+
+(function(){
+  var cv=$('wave');
+  function tAt(e){ var it=items[idx], r=cv.getBoundingClientRect();
+    return it.t0+(e.clientX-r.left)/(r.width||1)*(it.t1-it.t0); }
+  cv.addEventListener('pointerdown',function(e){
+    var it=items[idx]; if(!it) return;
+    var t=tAt(e), best=-1, bd=1e9;
+    it.syl.forEach(function(s,i){ var d=Math.abs(t-s.rime_start); if(d<bd){bd=d;best=i;} });
+    if(bd>(it.t1-it.t0)*0.06) return;
+    dragging=best; active=best; buildSylRow(); e.preventDefault();
+    if(cv.setPointerCapture){ try{cv.setPointerCapture(e.pointerId);}catch(_){} }
+  });
+  cv.addEventListener('pointermove',function(e){
+    if(dragging==null) return; e.preventDefault();
+    var it=items[idx], s=it.syl[dragging], t=tAt(e);
+    s.rime_start=Math.max(s.onset_start,Math.min(s.rime_end,t));
+    markAdjusted(); update(); draw();
+  });
+  function up(){ dragging=null; }
+  cv.addEventListener('pointerup',up); cv.addEventListener('pointercancel',up);
+})();
+
+/* -------------------------------------------------------------- playback */
+function actx(){ if(!ctxA) ctxA=new (window.AudioContext||window.webkitAudioContext)();
+  if(ctxA.state==='suspended') ctxA.resume(); return ctxA; }
+function stop(){ if(srcNode){try{srcNode.stop();}catch(_){} srcNode=null;}
+  if(rafId){cancelAnimationFrame(rafId);rafId=null;} if(items.length) draw(); }
+function play(from,to){
+  var it=items[idx]; if(!it) return; stop();
+  from=Math.max(0,from); to=Math.min(it.audio.samples.length/it.audio.rate,to);
+  if(to-from<0.002){ say('That part is too short to hear.',true); return; }
+  var A=actx(), buf=A.createBuffer(1,it.audio.samples.length,it.audio.rate);
+  buf.copyToChannel?buf.copyToChannel(it.audio.samples,0):buf.getChannelData(0).set(it.audio.samples);
+  srcNode=A.createBufferSource(); srcNode.buffer=buf; srcNode.connect(A.destination);
+  playFrom=from; playTo=to; playStart=A.currentTime; srcNode.start(0,from,to-from);
+  var tick=function(){ var t=playFrom+(actx().currentTime-playStart);
+    if(t>=playTo){ stop(); return; } draw(t); rafId=requestAnimationFrame(tick); };
+  rafId=requestAnimationFrame(tick);
+}
+$('playAll').addEventListener('click',function(){ var it=items[idx]; play(it.t0,it.t1); });
+$('playOnset').addEventListener('click',function(){ var s=items[idx].syl[active]; play(s.onset_start,s.rime_start); });
+$('playRime').addEventListener('click',function(){ var s=items[idx].syl[active]; play(s.rime_start,s.rime_end); });
+
+/* ------------------------------------------------------ syllable count fix */
+$('addSyl').addEventListener('click',function(){
+  var it=items[idx], s=it.syl[active], midT=(s.rime_start+s.rime_end)/2;
+  it.syl.splice(active+1,0,{onset_start:midT,rime_start:midT,rime_end:s.rime_end});
+  s.rime_end=midT; markAdjusted(); buildSylRow(); update(); draw();
+});
+$('delSyl').addEventListener('click',function(){
+  var it=items[idx]; if(it.syl.length<2) return;
+  var s=it.syl.splice(active,1)[0];
+  if(active>0) it.syl[active-1].rime_end=s.rime_end;
+  else it.syl[0].onset_start=s.onset_start;
+  active=Math.max(0,active-1); markAdjusted(); buildSylRow(); update(); draw();
+});
+$('reset').addEventListener('click',function(){
+  var it=items[idx]; it.syl=JSON.parse(JSON.stringify(it.proposed)); it.touched=false;
+  active=0; var b=$('badge'); b.className='badge show';
+  b.textContent='Automatic suggestion — listen and adjust only if a mark is clearly wrong';
+  buildSylRow(); update(); draw();
+});
+
+/* -------------------------------------------------------------- decisions */
+$('confirm').addEventListener('click',function(){
+  var it=items[idx], rate=it.audio.rate;
+  var adj=[], sameCount=(it.syl.length===it.proposed.length);
+  it.syl.forEach(function(s,i){
+    adj.push(sameCount ? +(((s.rime_start-it.proposed[i].rime_start)*1000).toFixed(1)) : null);
+  });
+  records[it.name]={
+    schema:SCHEMA, tool_version:TOOL, proposal_version:PROPOSAL_VERSION,
+    source_file:it.name, source_sha256:it.stageA.source_sha256||null,
+    stage_a:{ start_s:it.stageA.start_s, end_s:it.stageA.end_s,
+              start_sample:it.stageA.start_sample, end_sample:it.stageA.end_sample,
+              schema:it.stageA.schema, tool_version:it.stageA.tool_version,
+              proposal_algorithm_version:it.stageA.proposal_algorithm_version||null },
+    sample_rate:rate,
+    syllables:it.syl.map(function(s,i){ return {
+      index:i,
+      onset_start_s:+s.onset_start.toFixed(6), onset_end_s:+s.rime_start.toFixed(6),
+      rime_start_s:+s.rime_start.toFixed(6),  rime_end_s:+s.rime_end.toFixed(6),
+      onset_start_sample:Math.round(s.onset_start*rate),
+      rime_start_sample:Math.round(s.rime_start*rate),
+      rime_end_sample:Math.round(s.rime_end*rate),
+      onset_duration_ms:Math.round((s.rime_start-s.onset_start)*1000),
+      rime_duration_ms:Math.round((s.rime_end-s.rime_start)*1000) }; }),
+    proposed_syllables:it.proposed,
+    expected_syllable_count:it.expected,
+    prompt:{hanzi:it.hanzi,pinyin:it.prompt.pinyin,tone_pattern:it.prompt.tonePattern,id:it.prompt.id},
+    proposed_syllable_count:it.proposed.length,
+    final_syllable_count:it.syl.length,
+    rime_start_adjustments_ms:adj,
+    reviewer_adjusted:!!it.touched,
+    reviewer_confirmed:true,
+    proposal_warnings:it.warnings.slice(),
+    proposal_config:ONSET_CONFIG,
+    timestamp:new Date().toISOString()
+  };
+  var b=$('badge'); b.className='badge show saved'; b.textContent='Saved';
+  dev('confirmed '+it.name+' ('+it.syl.length+' parts)');
+  if(idx<items.length-1) show(idx+1); else $('finish').click();
+});
+$('prevItem').addEventListener('click',function(){ show(idx-1); });
+$('nextItem').addEventListener('click',function(){ show(idx+1); });
+$('back').addEventListener('click',function(){ $('doneCard').classList.add('hidden'); show(idx); });
+$('finish').addEventListener('click',function(){
+  stop(); $('mainCard').classList.add('hidden');
+  var n=Object.keys(records).length;
+  var adjusted=0; Object.keys(records).forEach(function(k){ if(records[k].reviewer_adjusted) adjusted++; });
+  $('doneSummary').textContent=n+' of '+items.length+' checked; '+adjusted+
+    ' needed an adjustment; '+(n-adjusted)+' accepted the suggestion unchanged.';
+  $('doneCard').classList.remove('hidden');
+});
+$('exportJson').addEventListener('click',function(){
+  var out={ schema:SCHEMA, tool_version:TOOL, proposal_version:PROPOSAL_VERSION,
+    exported:new Date().toISOString(),
+    adjustment_sign_convention:'final minus proposed; positive = reviewer moved the vowel start later',
+    boundary_rounding:'boundaries snapped to nearest whole sample; same index used for playback and record',
+    records:Object.keys(records).map(function(k){ return records[k]; }) };
+  var b=new Blob([JSON.stringify(out,null,1)],{type:'application/json'});
+  var a=document.createElement('a'); a.href=URL.createObjectURL(b);
+  a.download='stage_b_onset_rime.json'; document.body.appendChild(a); a.click(); a.remove();
+});
+</script></body></html>
