@@ -165,6 +165,10 @@ const CFG={
   clarity:0.60,
   bridgeMs:280,
   coachFloor:25,       /* target evidence needed before we coach rather than veto */
+  neutralCoaching:false, /* measured and logged, but NOT allowed to affect the
+                            learner's score until we know what her own 妈妈 does */
+  valleyRatio:0.78,   /* a dip to this share of the neighbouring peak splits a syllable */
+  minSylMs:110,
   vetoSoft:15,         /* another tone better by this -> cap 59      */
   vetoHard:30,         /* ... by this -> cap 24                      */
   t1RangeFree:1.5, t1RangeSpan:3.5,
@@ -722,35 +726,109 @@ function judge(c){
 }
 const bandOf=s=>BANDS.findIndex(b=>s>=b.min);
 
-/* two-syllable helpers — energy only, the tone rules are untouched */
-function energyEnvelope(x,sr){
-  const win=Math.round(sr*0.02), out=[];
+/* ==================================================================
+   TWO-SYLLABLE HELPERS
+
+   妈妈 never falls silent in the middle: the /m/ of the second syllable
+   is voiced and carries energy straight through, so waiting for a gap
+   finds one syllable where there are two. We look for a VALLEY between
+   two peaks instead — the nasal is quieter than the vowel around it.
+
+   The frozen four-tone rules are untouched. What is added here is a
+   check on the NEUTRAL syllable, which is a new exercise rather than a
+   change to tone recognition.
+   ================================================================== */
+function envelope(x,sr){
+  const win=Math.round(sr*0.020), out=[];
   for(let i=0;i+win<x.length;i+=win){ let e=0;
     for(let k=0;k<win;k++) e+=x[i+k]*x[i+k];
-    out.push(Math.sqrt(e/win)); }
+    out.push({ms:i/sr*1000, r:Math.sqrt(e/win)}); }
   return out;
 }
-function countSyllables(x,sr,floor){
-  const env=energyEnvelope(x,sr), gate=Math.max(floor*Math.pow(10,CFG.gateDb/20),0.0012);
-  let n=0,on=false,run=0;
-  for(const v of env){
-    if(v>gate*1.4){ if(!on){run=0;} on=true; run++; }
-    else { if(on&&run>=3) n++; on=false; run=0; }
+function syllableSplit(x,sr,floor){
+  const env=envelope(x,sr);
+  if(env.length<6) return [];
+  const gate=Math.max(floor*Math.pow(10,CFG.gateDb/20),0.0012);
+  /* the one loud stretch that holds the whole word */
+  let a=-1,b=-1;
+  for(let i=0;i<env.length;i++) if(env[i].r>gate){ if(a<0)a=i; b=i; }
+  if(a<0||b-a<5) return [];
+  const seg=env.slice(a,b+1), peak=Math.max(...seg.map(e=>e.r));
+  /* valleys that dip meaningfully below the peaks on either side */
+  const cuts=[];
+  for(let i=2;i<seg.length-2;i++){
+    if(!(seg[i].r<=seg[i-1].r&&seg[i].r<=seg[i+1].r)) continue;
+    let L=0; for(let k=0;k<i;k++) L=Math.max(L,seg[k].r);
+    let R=0; for(let k=i+1;k<seg.length;k++) R=Math.max(R,seg[k].r);
+    const nearer=Math.min(L,R);
+    if(nearer<peak*0.35) continue;
+    if(seg[i].r<=nearer*CFG.valleyRatio) cuts.push({i:i,ms:seg[i].ms,depth:seg[i].r/nearer});
   }
-  if(on&&run>=3) n++;
-  return Math.max(1,n);
-}
-function firstSyllable(raw){
-  /* keep frames up to the first voiced gap of >=90 ms */
-  const out=[]; let seen=false,gap=0;
-  for(const p of raw){
-    if(p.f0){ if(gap>=90&&seen) break; seen=true; gap=0; out.push(p); }
-    else { if(seen) gap+=10; out.push(p); }
+  cuts.sort((p,q)=>p.depth-q.depth);
+  const chosen=[]; 
+  for(const c of cuts){
+    if(c.ms-seg[0].ms<CFG.minSylMs||seg[seg.length-1].ms-c.ms<CFG.minSylMs) continue;
+    if(chosen.some(o=>Math.abs(o.ms-c.ms)<CFG.minSylMs)) continue;
+    chosen.push(c);
+  }
+  chosen.sort((p,q)=>p.ms-q.ms);
+  const bounds=[seg[0].ms,...chosen.map(c=>c.ms),seg[seg.length-1].ms];
+  const out=[];
+  for(let i=0;i<bounds.length-1;i++){
+    /* trim each syllable back to its own vowel — a long decaying tail is
+       not part of the syllable's pitch and must not be measured as one */
+    const inSpan=seg.filter(e=>e.ms>=bounds[i]&&e.ms<=bounds[i+1]);
+    const pk=Math.max(...inSpan.map(e=>e.r));
+    let end=bounds[i+1];
+    for(let k=inSpan.length-1;k>=0;k--) if(inSpan[k].r>=pk*0.35){ end=inSpan[k].ms; break; }
+    out.push({t0:bounds[i], t1:Math.max(bounds[i]+CFG.minSylMs,end)});
   }
   return out;
+}
+/* Octaves must be resolved across the WHOLE word before it is split.
+   Repairing a syllable in isolation anchors it to its own median, so a
+   doubled syllable is faithfully "repaired" into the wrong octave and the
+   two halves end up an octave apart. Same rule the single-tone path uses:
+   resolve against a robust centre of everything, never a local one. */
+function resolveOctaves(raw){
+  const v=raw.filter(p=>p.f0); if(v.length<8) return raw;
+  const so=v.map(p=>p.f0).slice().sort((a,b)=>a-b);
+  let est=so[so.length>>1];
+  const fix=new Map();
+  for(const p of v){
+    /* not only octaves: this tracker also lands on 2/3 of the true rate,
+       and doubling that produces a fake five-semitone spike */
+    const c=[p.f0/2,p.f0*2/3,p.f0,p.f0*3/2,p.f0*2].reduce((m,x)=>
+      Math.abs(Math.log2(x/est))<Math.abs(Math.log2(m/est))?x:m);
+    if(Math.abs(12*Math.log2(c/est))>4) continue;   /* still implausible -> refuse */
+    est=est*0.8+c*0.2; fix.set(p.t,c);
+  }
+  return raw.map(p=>({t:p.t, f0:p.f0?(fix.has(p.t)?fix.get(p.t):null):null}));
 }
 
-/* ---------------- attempt flow ---------------- */
+/* four isolated frames can jump 5 st on an otherwise steady vowel. This
+   runs on the PAIR path only — the frozen four-tone path is untouched. */
+function despike(raw){
+  const f=raw.map(p=>p.f0);
+  return raw.map((p,i)=>{
+    if(!p.f0) return p;
+    const w=[]; for(let k=Math.max(0,i-2);k<=Math.min(f.length-1,i+2);k++) if(f[k]) w.push(f[k]);
+    w.sort((a,b)=>a-b);
+    return {t:p.t, f0:w.length>=3?w[w.length>>1]:p.f0};
+  });
+}
+function framesBetween(raw,t0,t1){ return raw.filter(p=>p.t>=t0&&p.t<=t1); }
+/* the neutral syllable should fall away, light and low */
+function neutralScore(raw,s1,s2){
+  const lv=(a,b)=>{ const f=framesBetween(raw,a,b).filter(p=>p.f0).map(p=>p.f0).sort((x,y)=>x-y);
+    return f.length?f[f.length>>1]:null; };
+  const h=lv(s1.t0,s1.t1), n=lv(s2.t0,s2.t1);
+  if(!h||!n) return {score:0,dropSt:null};
+  const drop=12*Math.log2(h/n);
+  return {score:Math.max(0,Math.min(100,100*(drop-0.4)/3.4)), dropSt:drop};
+}
+
+/* ---------------- attempt flow ---------------- *//* ---------------- attempt flow ---------------- */
 let rid=0,floorRms=0.002,recT0=0,lastVoice=0,voiceMs=0;
 
 async function turn(){
@@ -805,9 +883,13 @@ function finish(){
   /* For the pair we split on the quiet between the syllables. The frozen
      tone rule judges the first syllable; the second must simply be there,
      light and short. No new tone recognition was added. */
-  let syls=1;
-  if(id==="PAIR") syls=countSyllables(audioF32,recSR,floorRms);
-  const a=analyse(id==="PAIR"?firstSyllable(raw):raw);
+  let sylSpans=[], neutral=null;
+  let praw=raw;
+  if(id==="PAIR"){ praw=despike(resolveOctaves(raw)); sylSpans=syllableSplit(audioF32,recSR,floorRms); }
+  const syls=id==="PAIR"?Math.max(1,sylSpans.length):1;
+  if(id==="PAIR"&&sylSpans.length>=2) neutral=neutralScore(praw,sylSpans[0],sylSpans[1]);
+  const a=analyse(id==="PAIR"&&sylSpans.length>=2
+                  ? framesBetween(praw,sylSpans[0].t0,sylSpans[0].t1) : raw);
   const wav=toWav(audioF32,recSR);
   if(learnerAudio) URL.revokeObjectURL(learnerAudio);
   learnerAudio=URL.createObjectURL(new Blob([wav],{type:"audio/wav"}));
@@ -820,8 +902,15 @@ function finish(){
   }
   const j=judge(a.c);
   let sc=j.score, act=j.action;
-  if(id==="PAIR"&&syls<2){ sc=Math.min(sc,45); act="pair"; }
-  result={score:sc,band:bandOf(sc),action:act,best:j.best,syllables:syls};
+  if(id==="PAIR"){
+    if(syls<2){ sc=Math.min(sc,45); act="pair"; }
+    else if(CFG.neutralCoaching){
+      sc=Math.round(0.65*j.score+0.35*neutral.score);
+      if(neutral.score<35&&j.score>=50){ sc=Math.min(sc,59); act="neutral"; }
+    }
+  }
+  result={score:sc,band:bandOf(sc),action:act,best:j.best,syllables:syls,
+          neutralDrop:neutral?neutral.dropSt:null};
   els.hint.textContent=HINT[tone];
   lastDebug="score "+j.score+"  band "+BANDS[result.band].name
     +"\nfit  T1 "+Math.round(j.fit[1])+"  T2 "+Math.round(j.fit[2])
@@ -831,7 +920,9 @@ function finish(){
     +"  recovery "+j.f.recovery.toFixed(1)+" st"
     +"\nrange "+j.range.toFixed(2)+" st   dur "+Math.round(a.durMs)+" ms"
     +"\nbaseline "+a.baselineHz+" Hz   voiced "+a.coverage+"%"
-    +"\nfloor "+floorRms.toFixed(4)+"  gate +"+CFG.gateDb+" dB";
+    +"\nfloor "+floorRms.toFixed(4)+"  gate +"+CFG.gateDb+" dB"
+    +(id==="PAIR"?("\nsyllables "+(result?result.syllables:"?")
+       +"  neutral drop "+(result&&result.neutralDrop!=null?result.neutralDrop.toFixed(1)+" st":"n/a")):"");
   showResult(true); setChips();
   record(wav,a,j);
 }
@@ -841,7 +932,9 @@ function showResult(auto){
   if(!result) return;
   const b=BANDS[result.band];
   els.vband.textContent=b.name; els.vband.style.color=b.color;
-  els.vmsg.textContent = result.action==="pair"
+  els.vmsg.textContent = result.action==="neutral"
+  ? "Let the second 妈 fall — light and soft."
+  : result.action==="pair"
   ? "Say both halves — 妈妈."
   : result.action
     ? (COACH[tone+"-"+result.best] || "That sounded like a different tone.")
