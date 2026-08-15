@@ -156,6 +156,7 @@ const CFG={
   f0Min:55, f0Max:450,
   clarity:0.60,
   bridgeMs:280,
+  coachFloor:25,       /* target evidence needed before we coach rather than veto */
   vetoSoft:15,         /* another tone better by this -> cap 59      */
   vetoHard:30,         /* ... by this -> cap 24                      */
   t1RangeFree:1.5, t1RangeSpan:3.5,
@@ -474,16 +475,21 @@ function judge(c){
   let s=fit[tone], action=null, gap=0;
   if(best!==tone){
     gap=fit[best]-fit[tone];
-    const adjacent=NEIGHBOURS[tone+"-"+best];
+    /* Coaching is only honest when the learner actually attempted something
+       resembling the target. With no target evidence at all it really was a
+       different tone, and we say so rather than dressing it up. */
+    const adjacent=NEIGHBOURS[tone+"-"+best] && fit[tone]>=CFG.coachFloor;
     if(adjacent){
-      if(gap>CFG.vetoHard){ s=Math.min(s,59); action="coach"; }
-      else if(gap>CFG.vetoSoft){ s=Math.min(s,69); action="coach"; }
+      if(gap>CFG.vetoHard){ s=Math.min(s,59); }
+      else if(gap>CFG.vetoSoft){ s=Math.min(s,69); }
+      s=Math.max(s,25);              /* never below Almost There when coaching */
+      action="coach";
     } else {
       if(gap>CFG.vetoHard){ s=Math.min(s,24); action="veto"; }
       else if(gap>CFG.vetoSoft){ s=Math.min(s,59); action="veto"; }
     }
   }
-  return {score:Math.round(s),fit:fit,f:f,best:best,gap:Math.round(gap),action:action};
+  return {score:Math.round(s),fit:fit,f:f,range:f.range,best:best,gap:Math.round(gap),action:action};
 }
 const bandOf=s=>BANDS.findIndex(b=>s>=b.min);
 
