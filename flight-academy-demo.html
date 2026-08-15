@@ -5,78 +5,77 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <title>Flight Academy</title>
 <style>
-:root{
-  --ink:#2B3A42; --ink-soft:#6C8390; --paper:#FBF7F1;
-  --t1:#1F6F78; --t2:#3E7D4E; --t3:#C77B2E; --t4:#B4483F;
-  --rec:#C2483F; --r:18px;
-}
+:root{--ink:#2B3A42;--ink-soft:#6C8390;--paper:#FBF7F1;
+ --t1:#1F6F78;--t2:#3E7D4E;--t3:#C77B2E;--t4:#B4483F;--rec:#C2483F;--r:18px;}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{margin:0;padding:0;height:100%;overflow:hidden;overscroll-behavior:none;
-  background:var(--paper);color:var(--ink);
-  font-family:"Avenir Next","Segoe UI",-apple-system,BlinkMacSystemFont,sans-serif;
-  -webkit-user-select:none;user-select:none;-webkit-text-size-adjust:100%;}
+ background:var(--paper);color:var(--ink);
+ font-family:"Avenir Next","Segoe UI",-apple-system,BlinkMacSystemFont,sans-serif;
+ -webkit-user-select:none;user-select:none;-webkit-text-size-adjust:100%;}
 body{height:100dvh;display:flex;flex-direction:column;
-  padding:calc(env(safe-area-inset-top) + 8px) calc(env(safe-area-inset-right) + 14px) calc(env(safe-area-inset-bottom) + 10px) calc(env(safe-area-inset-left) + 14px);
-  gap:10px;}
+ padding:calc(env(safe-area-inset-top) + 8px) calc(env(safe-area-inset-right) + 14px) calc(env(safe-area-inset-bottom) + 10px) calc(env(safe-area-inset-left) + 14px);gap:10px;}
 button{font:inherit;color:inherit;cursor:pointer;border:none;background:none;touch-action:manipulation;}
 button:focus-visible{outline:3px solid var(--t1);outline-offset:3px;border-radius:12px;}
-
 .top{flex:0 0 auto;display:flex;align-items:center;min-height:42px;}
 .back{font-size:15px;color:var(--ink-soft);font-weight:600;padding:8px 4px;min-width:70px;text-align:left;}
 .title{flex:1 1 auto;text-align:center;font-size:15px;color:var(--ink-soft);letter-spacing:.06em;}
-.spacer{min-width:70px;}
-
+.spacer{min-width:70px;text-align:right;font-size:12px;color:var(--t3);font-weight:700;padding-right:4px;}
 .picker{flex:1 1 auto;display:flex;flex-direction:column;justify-content:center;gap:18px;}
-.lead{text-align:center;}
-.lead h1{font-size:26px;margin:0 0 8px;font-weight:600;}
+.lead{text-align:center;} .lead h1{font-size:26px;margin:0 0 8px;font-weight:600;}
 .lead p{margin:0;color:var(--ink-soft);font-size:16px;line-height:1.5;}
 .cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .card{background:linear-gradient(160deg,#E3EDEF,var(--paper));border:1px solid rgba(43,58,66,.09);
-  border-radius:var(--r);padding:14px;box-shadow:0 2px 10px rgba(43,58,66,.06);
-  display:flex;flex-direction:column;gap:4px;transition:transform .1s ease;text-align:left;}
+ border-radius:var(--r);padding:14px;box-shadow:0 2px 10px rgba(43,58,66,.06);
+ display:flex;flex-direction:column;gap:4px;transition:transform .1s ease;text-align:left;}
 .card:active{transform:scale(.97);}
 .card .ch{font-size:34px;font-weight:600;line-height:1.05;}
 .card .py{font-size:14px;color:var(--ink-soft);}
 .card canvas{width:100%;height:30px;display:block;margin-top:4px;}
-
 .sky{flex:1 1 auto;position:relative;min-height:180px;border-radius:22px;overflow:hidden;
-  box-shadow:0 3px 18px rgba(43,58,66,.10);}
+ box-shadow:0 3px 18px rgba(43,58,66,.10);}
 #field{display:block;width:100%;height:100%;}
 .cue{position:absolute;top:12px;left:0;right:0;text-align:center;font-size:15px;font-weight:600;
-  color:var(--ink);text-shadow:0 1px 8px rgba(255,255,255,.9);pointer-events:none;opacity:0;
-  transition:opacity .25s ease;}
+ color:var(--ink);text-shadow:0 1px 8px rgba(255,255,255,.9);pointer-events:none;opacity:0;transition:opacity .25s ease;}
 .cue.show{opacity:1;}
-.count{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  font-size:84px;font-weight:600;color:rgba(43,58,66,.45);
-  text-shadow:0 2px 22px rgba(255,255,255,.95);pointer-events:none;opacity:0;}
+.count{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:84px;
+ font-weight:600;color:rgba(43,58,66,.45);text-shadow:0 2px 22px rgba(255,255,255,.95);pointer-events:none;opacity:0;}
 .count.show{opacity:1;}
-.verdict{position:absolute;left:0;right:0;top:10px;text-align:center;pointer-events:none;
-  opacity:0;transition:opacity .3s ease;}
+.verdict{position:absolute;left:0;right:0;top:10px;text-align:center;pointer-events:none;opacity:0;transition:opacity .3s ease;}
 .verdict.show{opacity:1;}
-.verdict .band{font-size:21px;font-weight:700;letter-spacing:.01em;}
-.verdict .msg{font-size:15px;color:var(--ink);margin-top:2px;text-shadow:0 1px 8px rgba(255,255,255,.9);}
-
+.verdict .band{font-size:21px;font-weight:700;}
+.verdict .msg{font-size:15px;margin-top:2px;text-shadow:0 1px 8px rgba(255,255,255,.9);}
+.level{position:absolute;left:14px;right:14px;bottom:10px;height:4px;border-radius:3px;background:rgba(43,58,66,.12);overflow:hidden;opacity:0;transition:opacity .2s;}
+.level.show{opacity:1;} .level i{display:block;height:100%;width:0;background:var(--rec);border-radius:3px;}
 .hint{flex:0 0 auto;text-align:center;font-size:14px;color:var(--ink-soft);min-height:19px;}
 .row{flex:0 0 auto;display:flex;gap:10px;}
 .big{flex:1 1 0;min-height:60px;border-radius:var(--r);background:var(--ink);color:var(--paper);
-  font-size:17px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:9px;
-  transition:transform .08s ease,opacity .15s ease;}
+ font-size:17px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:9px;
+ transition:transform .08s ease,opacity .15s ease;}
 .big:active:not(:disabled){transform:scale(.975);}
 .big.ghost{background:transparent;color:var(--ink);border:1.5px solid rgba(43,58,66,.22);}
-.big.record{background:var(--rec);color:#fff;}
-.big:disabled{opacity:.35;}
+.big.record{background:var(--rec);color:#fff;} .big:disabled{opacity:.35;}
 .dot{width:12px;height:12px;border-radius:50%;background:currentColor;}
 .chips{flex:0 0 auto;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
 .chip{min-height:46px;border-radius:14px;border:1.5px solid rgba(43,58,66,.16);font-size:14px;
-  font-weight:600;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.55);}
-.chip:active:not(:disabled){background:rgba(43,58,66,.06);}
-.chip:disabled{opacity:.3;}
+ font-weight:600;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.55);}
+.chip:active:not(:disabled){background:rgba(43,58,66,.06);} .chip:disabled{opacity:.3;}
 .hidden{display:none !important;}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 92px);
-  background:var(--ink);color:var(--paper);padding:12px 20px;border-radius:999px;font-size:15px;
-  font-weight:600;box-shadow:0 6px 24px rgba(43,58,66,.35);opacity:0;pointer-events:none;
-  transition:opacity .2s ease;z-index:80;max-width:88vw;text-align:center;}
+ background:var(--ink);color:var(--paper);padding:12px 20px;border-radius:999px;font-size:15px;font-weight:600;
+ box-shadow:0 6px 24px rgba(43,58,66,.35);opacity:0;pointer-events:none;transition:opacity .2s ease;z-index:80;max-width:88vw;text-align:center;}
 .toast.show{opacity:1;}
+/* dev */
+.sheet{position:fixed;inset:0;background:rgba(43,58,66,.5);z-index:90;display:flex;align-items:flex-end;justify-content:center;}
+.sheet-in{background:var(--paper);width:100%;max-width:520px;border-radius:22px 22px 0 0;
+ padding:20px 18px calc(env(safe-area-inset-bottom) + 18px);display:flex;flex-direction:column;gap:14px;max-height:88dvh;overflow:auto;}
+.sheet h2{margin:0;font-size:19px;} .sheet .lab{font-size:13px;color:var(--ink-soft);font-weight:600;letter-spacing:.05em;text-transform:uppercase;}
+.sheet .val{font-size:15px;font-weight:700;float:right;color:var(--ink);}
+input[type=range]{width:100%;height:38px;}
+.seg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;}
+.seg button{min-height:46px;border-radius:12px;border:1.5px solid rgba(43,58,66,.18);font-size:14px;font-weight:600;background:rgba(255,255,255,.6);}
+.seg button[aria-pressed=true]{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+.dbg{font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;color:var(--ink-soft);
+ background:rgba(43,58,66,.05);border-radius:12px;padding:10px;white-space:pre-wrap;}
 @media (prefers-reduced-motion:reduce){*{transition:none !important;}}
 </style>
 </head>
@@ -85,14 +84,11 @@ button:focus-visible{outline:3px solid var(--t1);outline-offset:3px;border-radiu
 <div class="top">
   <button class="back hidden" id="back">‹ Tones</button>
   <div class="title" id="title">Flight Academy · 小鸟</div>
-  <div class="spacer"></div>
+  <div class="spacer" id="devTag"></div>
 </div>
 
 <div class="picker" id="picker">
-  <div class="lead">
-    <h1>Every character has a flight path</h1>
-    <p>Listen to the tone. Fly your bird.</p>
-  </div>
+  <div class="lead"><h1>Every character has a flight path</h1><p>Listen to the tone. Fly your bird.</p></div>
   <div class="cards" id="cards"></div>
 </div>
 
@@ -101,6 +97,7 @@ button:focus-visible{outline:3px solid var(--t1);outline-offset:3px;border-radiu
   <div class="cue" id="cue"></div>
   <div class="count" id="count"></div>
   <div class="verdict" id="verdict"><div class="band" id="vband"></div><div class="msg" id="vmsg"></div></div>
+  <div class="level" id="level"><i id="levelBar"></i></div>
 </div>
 
 <div class="hint hidden" id="hint"></div>
@@ -122,480 +119,423 @@ const ASSETS={"FA_001":{"ch":"妈","py":"mā","name":"Tone 1","hint":"High and l
 <script>
 "use strict";
 /* ==================================================================
-   FLIGHT ACADEMY — demonstration v3
+   FLIGHT ACADEMY — calibration build
 
-   PRODUCT RULE (Aug 14): the learner never sees a drawing of the
-   microphone's raw pitch. The analyser only decides WHICH QUALITY
-   BAND the attempt falls in. The bird then flies a predesigned
-   educational animation. The shape never changes with quality —
-   only the quality of the flight does.
+   Learner sees: teacher's ideal flight, their bird, and one of four
+   predesigned flight-quality animations. Never raw microphone pitch.
 
-   The raw contour still exists in memory for scoring. It is never
-   drawn, never exported, and never becomes a reference target.
+   This build fixes the four agreed defects:
+     1. noise floor measured live during the count-in, not a constant
+     2. no tail trimming — a fourth tone's fall is its quietest part
+     3. all four tones scored by ONE comparable rule
+     4. a veto: if another tone clearly explains the recording better,
+        the target's score is capped
    ================================================================== */
 
 const ORDER=["FA_001","FA_002","FA_003","FA_004"];
 const TONE_N={FA_001:1,FA_002:2,FA_003:3,FA_004:4};
 const HUE={1:"#1F6F78",2:"#3E7D4E",3:"#C77B2E",4:"#B4483F"};
 const HINT={1:"High and level.",2:"Rising.",3:"Dips down, then rises.",4:"Falls down sharply."};
-const BANDS=[
-  {min:80,name:"Excellent",color:"#2E7D4F"},
-  {min:60,name:"Good",color:"#2C6E8F"},
-  {min:25,name:"Almost There",color:"#C77B2E"},
-  {min:0 ,name:"Try Again",color:"#B4483F"}
-];
-const MSG={
- 1:["Smooth and steady!","Nice job!","Keep it level!","Let's try again."],
- 2:["Excellent climb!","Great effort!","Keep going up!","Climb higher!"],
- 3:["Beautiful dip and rise!","Nice recovery!","Try a deeper dip.","Let's try again."],
- 4:["Strong and clean!","Well done!","Drop down more.","Dive down!"]
+const BANDS=[{min:80,name:"Excellent",color:"#2E7D4F"},{min:60,name:"Good",color:"#2C6E8F"},
+             {min:25,name:"Almost There",color:"#C77B2E"},{min:0,name:"Try Again",color:"#B4483F"}];
+const MSG={1:["Smooth and steady!","Nice job!","Keep it level!","Let's try again."],
+           2:["Excellent climb!","Great effort!","Keep going up!","Climb higher!"],
+           3:["Beautiful dip and rise!","Nice recovery!","Try a deeper dip.","Let's try again."],
+           4:["Strong and clean!","Well done!","Drop down more.","Dive down!"]};
+const VETO_MSG={1:"That sounded like a different tone.",2:"That sounded like a different tone.",
+                3:"That sounded like a different tone.",4:"That sounded like a different tone."};
+
+/* tunables — the two live ones are exposed in dev mode, the rest are
+   frozen here and will be tuned offline from the captured corpus */
+const CFG={
+  gateDb:6,            /* dB above the measured room floor  (LIVE)   */
+  silenceMs:700,       /* pause that ends the attempt       (LIVE)   */
+  maxMs:6000,
+  headTrimMs:90,       /* attack only. tail trim is now ZERO         */
+  tailTrimMs:0,
+  f0Min:55, f0Max:450,
+  clarity:0.60,
+  bridgeMs:280,
+  vetoSoft:15,         /* another tone better by this -> cap 59      */
+  vetoHard:30,         /* ... by this -> cap 24                      */
+  t1RangeFree:1.5, t1RangeSpan:3.5,
+  ampFloor:0.8, ampSpan:2.2,
+  corrOff:0.15, corrSpan:0.95
 };
 
-let id=null,tone=1,ideal=null,stage="menu",anim=null;
-let ctx=null,stream=null,recorder=null,chunks=[],learnerAudio=null;
-let result=null;                    // {score, bandIdx}
+let id=null,tone=1,ideal=null,stage="menu",anim=null,result=null;
+let ctx=null,stream=null,learnerAudio=null;
 const buffers={};
-let userBaseline=null;              // per-user calibration, built across attempts
+let dev=false, intended="correct", capture=[], lastDebug="";
 
 const $=x=>document.getElementById(x);
-const els={picker:$("picker"),cards:$("cards"),sky:$("sky"),field:$("field"),cue:$("cue"),
-  count:$("count"),hint:$("hint"),mainRow:$("mainRow"),listenBtn:$("listenBtn"),recBtn:$("recBtn"),
-  chips:$("chips"),back:$("back"),title:$("title"),toast:$("toast"),
-  verdict:$("verdict"),vband:$("vband"),vmsg:$("vmsg")};
+const els={picker:$("picker"),cards:$("cards"),sky:$("sky"),field:$("field"),cue:$("cue"),count:$("count"),
+ hint:$("hint"),mainRow:$("mainRow"),listenBtn:$("listenBtn"),recBtn:$("recBtn"),chips:$("chips"),
+ back:$("back"),title:$("title"),toast:$("toast"),verdict:$("verdict"),vband:$("vband"),vmsg:$("vmsg"),
+ level:$("level"),levelBar:$("levelBar"),devTag:$("devTag")};
 
 /* ---------------- audio ---------------- */
 function audio(){ if(!ctx) ctx=new (window.AudioContext||window.webkitAudioContext)();
   if(ctx.state==="suspended") ctx.resume(); return ctx; }
 function b64(s){const b=atob(s),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u.buffer;}
-async function decode(k){ if(buffers[k]) return buffers[k];
-  const c=audio();
+async function decode(k){ if(buffers[k]) return buffers[k]; const c=audio();
   buffers[k]=await new Promise((res,rej)=>{const p=c.decodeAudioData(b64(ASSETS[k].wav),res,rej); if(p&&p.then)p.then(res,rej);});
   return buffers[k]; }
 let src=null;
-function playNative(){ const c=audio(); stopNative();
-  const b=buffers[id]; if(!b) return c.currentTime;
+function playNative(){ const c=audio(); stopNative(); const b=buffers[id]; if(!b) return c.currentTime;
   src=c.createBufferSource(); src.buffer=b; src.connect(c.destination);
   const t=c.currentTime+0.06; src.start(t); return t; }
 function stopNative(){ if(src){try{src.stop();}catch(e){} src.disconnect(); src=null;} }
 
-/* ---------------- geometry ---------------- */
+/* ---------------- geometry / drawing ---------------- */
 const g=els.field.getContext("2d");
-let W=0,H=0,DPR=1,lw=0,lh=0;
+let W=0,H=0,DPR=1,lw=0,lh=0,flap=0;
 function sizeField(){ DPR=Math.min(devicePixelRatio||1,2);
   const w=els.sky.clientWidth,h=els.sky.clientHeight;
   els.field.width=Math.round(w*DPR); els.field.height=Math.round(h*DPR);
   els.field.style.width=w+"px"; els.field.style.height=h+"px"; W=w;H=h;lw=w;lh=h; }
-
-function lane(){
-  const cs=Math.min(W*0.40,H*0.30);
-  return { L:W*0.13, R:W*0.87, T:H*0.17, B:H*0.50, charSize:cs, charY:H*0.74 };
-}
-function span(){
-  const v=ideal.filter(p=>p[1]!==null).map(p=>p[1]);
-  const lo=Math.min(...v),hi=Math.max(...v),pad=Math.max(1.2,(hi-lo)*0.22);
-  return {lo:lo-pad,hi:hi+pad};
-}
+function lane(){ return {L:W*0.13,R:W*0.87,T:H*0.17,B:H*0.50,charSize:Math.min(W*0.40,H*0.30),charY:H*0.74}; }
+function span(){ const v=ideal.map(p=>p[1]),lo=Math.min(...v),hi=Math.max(...v),pad=Math.max(1.2,(hi-lo)*0.22);
+  return {lo:lo-pad,hi:hi+pad}; }
 const PX=(t,l)=>l.L+t*(l.R-l.L);
-const PY=(st,l,s)=>l.T+(1-(st-s.lo)/(s.hi-s.lo))*(l.B-l.T);
+const PY=(v,l,s)=>l.T+(1-(v-s.lo)/(s.hi-s.lo))*(l.B-l.T);
 function at(p,t){ t=Math.max(0,Math.min(1,t));
-  for(let i=0;i<p.length-1;i++){ if(t<=p[i+1][0]){
-    const u=(t-p[i][0])/Math.max(1e-6,p[i+1][0]-p[i][0]);
-    return p[i][1]+(p[i+1][1]-p[i][1])*u; } }
+  for(let i=0;i<p.length-1;i++) if(t<=p[i+1][0]){
+    const u=(t-p[i][0])/Math.max(1e-6,p[i+1][0]-p[i][0]); return p[i][1]+(p[i+1][1]-p[i][1])*u; }
   return p[p.length-1][1]; }
-
-/* ---------------- predesigned flight paths ----------------
-   The taught shape, degraded in QUALITY only. Never the learner's
-   measured contour. */
-function designed(bandIdx,seed){
-  const s=span(), amp=(s.hi-s.lo)*[0,0.035,0.095,0.185][bandIdx];
-  const sag=[0,0,0.04,0.11][bandIdx]*(s.hi-s.lo);
-  const N=80,out=[];
-  for(let i=0;i<=N;i++){
-    const t=i/N;
-    let v=at(ideal,t);
-    if(amp){
-      v+=Math.sin(t*Math.PI*2*(3.4+seed*0.7)+seed)*amp
-        +Math.sin(t*Math.PI*2*(6.9+seed*0.4)+seed*2.1)*amp*0.45;
-      v-=sag*t;
-    }
-    out.push([t,v]);
-  }
-  return out;
-}
-function feathers(bandIdx,path,seed){
-  const n=[0,0,2,5][bandIdx],out=[];
-  for(let i=0;i<n;i++){
-    const t=0.22+0.62*((i+0.5)/n)+((seed*7+i*13)%10)/120;
-    out.push({t:Math.min(0.95,t),drift:((i%2)?1:-1)*(0.4+(i%3)*0.25),spin:(i%2?1:-1)});
-  }
-  return out;
-}
-
-/* ---------------- drawing ---------------- */
-function sky(){
-  g.setTransform(DPR,0,0,DPR,0,0); g.clearRect(0,0,W,H);
+function designed(b,seed){ const s=span(),amp=(s.hi-s.lo)*[0,.035,.095,.185][b],sag=[0,0,.04,.11][b]*(s.hi-s.lo),out=[];
+  for(let i=0;i<=80;i++){ const t=i/80; let v=at(ideal,t);
+    if(amp){ v+=Math.sin(t*6.283*(3.4+seed*.7)+seed)*amp+Math.sin(t*6.283*(6.9+seed*.4)+seed*2.1)*amp*.45; v-=sag*t; }
+    out.push([t,v]); } return out; }
+function feathersFor(b,seed){ const n=[0,0,2,5][b],o=[];
+  for(let i=0;i<n;i++) o.push({t:Math.min(.95,.22+.62*((i+.5)/n)+((seed*7+i*13)%10)/120),
+    drift:((i%2)?1:-1)*(.4+(i%3)*.25),spin:(i%2?1:-1)});
+  return o; }
+function sky(){ g.setTransform(DPR,0,0,DPR,0,0); g.clearRect(0,0,W,H);
   const gr=g.createLinearGradient(0,0,0,H);
   gr.addColorStop(0,"#AFD0E2"); gr.addColorStop(.5,"#DFECEF"); gr.addColorStop(1,"#F8E8D5");
   g.fillStyle=gr; g.fillRect(0,0,W,H);
-  ridge(H*0.83,24,"rgba(186,208,206,.5)",0.9);
-  ridge(H*0.93,17,"rgba(152,184,180,.5)",1.8);
-}
-function ridge(base,amp,fill,ph){
-  g.beginPath(); g.moveTo(0,H);
+  ridge(H*.83,24,"rgba(186,208,206,.5)",.9); ridge(H*.93,17,"rgba(152,184,180,.5)",1.8); }
+function ridge(base,amp,fill,ph){ g.beginPath(); g.moveTo(0,H);
   for(let x=0;x<=W;x+=8) g.lineTo(x,base-Math.sin(x/W*Math.PI*1.6+ph)*amp-Math.sin(x/W*Math.PI*4.1+ph*2)*amp*.28);
-  g.lineTo(W,H); g.closePath(); g.fillStyle=fill; g.fill();
-}
-function character(l){
-  g.save();
+  g.lineTo(W,H); g.closePath(); g.fillStyle=fill; g.fill(); }
+function character(l){ g.save();
   g.font='600 '+l.charSize+'px "PingFang SC","Hiragino Sans GB","Songti SC",serif';
-  g.textAlign="center"; g.textBaseline="middle";
-  g.fillStyle="rgba(43,58,66,.90)";
-  g.fillText(ASSETS[id].ch,W/2,l.charY);
-  g.restore();
-}
-function guide(l,s){
-  g.save(); g.strokeStyle=HUE[tone]; g.globalAlpha=.30; g.lineWidth=2.5;
-  g.setLineDash([6,8]); g.lineCap="round"; g.lineJoin="round";
-  g.beginPath();
-  for(let i=0;i<=60;i++){ const t=i/60,x=PX(t,l),y=PY(at(ideal,t),l,s); i?g.lineTo(x,y):g.moveTo(x,y); }
-  g.stroke(); g.restore();
-}
-function trail(path,upto,l,s,color,glow){
-  g.save(); g.strokeStyle=color; g.lineWidth=4.5; g.lineCap="round"; g.lineJoin="round";
-  if(glow){ g.shadowColor=color; g.shadowBlur=12; }
-  g.beginPath(); let pen=false;
-  for(const p of path){ if(p[0]>upto) break;
-    const x=PX(p[0],l),y=PY(p[1],l,s); pen?g.lineTo(x,y):(g.moveTo(x,y),pen=true); }
-  g.stroke(); g.restore();
-}
-let flap=0;
-function bird(x,y,ang,color,sc,idle){
-  g.save(); g.translate(x,y); g.rotate(ang); g.scale(sc,sc);
-  const w=idle?Math.sin(flap*.35)*.14:Math.sin(flap)*.9;
-  g.fillStyle=color;
-  g.save(); g.rotate(-.35+w*.55); g.globalAlpha=.55;
-  g.beginPath(); g.ellipse(-2,-3,12,5,-.5,0,7); g.fill(); g.restore();
-  g.globalAlpha=1;
-  g.beginPath(); g.ellipse(0,0,12,8.5,0,0,7); g.fill();
+  g.textAlign="center"; g.textBaseline="middle"; g.fillStyle="rgba(43,58,66,.90)";
+  g.fillText(ASSETS[id].ch,W/2,l.charY); g.restore(); }
+function guide(l,s){ g.save(); g.strokeStyle=HUE[tone]; g.globalAlpha=.30; g.lineWidth=2.5;
+  g.setLineDash([6,8]); g.lineCap="round"; g.beginPath();
+  for(let i=0;i<=60;i++){const t=i/60,x=PX(t,l),y=PY(at(ideal,t),l,s); i?g.lineTo(x,y):g.moveTo(x,y);}
+  g.stroke(); g.restore(); }
+function trail(p,upto,l,s,c,glow){ g.save(); g.strokeStyle=c; g.lineWidth=4.5; g.lineCap="round"; g.lineJoin="round";
+  if(glow){g.shadowColor=c;g.shadowBlur=12;} g.beginPath(); let pen=false;
+  for(const q of p){ if(q[0]>upto) break; const x=PX(q[0],l),y=PY(q[1],l,s); pen?g.lineTo(x,y):(g.moveTo(x,y),pen=true); }
+  g.stroke(); g.restore(); }
+function bird(x,y,ang,c,sc,idle){ g.save(); g.translate(x,y); g.rotate(ang); g.scale(sc,sc);
+  const w=idle?Math.sin(flap*.35)*.14:Math.sin(flap)*.9; g.fillStyle=c;
+  g.save(); g.rotate(-.35+w*.55); g.globalAlpha=.55; g.beginPath(); g.ellipse(-2,-3,12,5,-.5,0,7); g.fill(); g.restore();
+  g.globalAlpha=1; g.beginPath(); g.ellipse(0,0,12,8.5,0,0,7); g.fill();
   g.beginPath(); g.moveTo(-9,-1); g.lineTo(-20,-6); g.lineTo(-19,3); g.closePath(); g.fill();
   g.beginPath(); g.arc(10,-5,6.5,0,7); g.fill();
   g.fillStyle="#E8A44C"; g.beginPath(); g.moveTo(16,-5); g.lineTo(23,-3.2); g.lineTo(16,-1.6); g.closePath(); g.fill();
   g.fillStyle="#FBF7F1"; g.beginPath(); g.arc(12,-6.6,2.2,0,7); g.fill();
   g.fillStyle="#2B3A42"; g.beginPath(); g.arc(12.6,-6.6,1.1,0,7); g.fill();
-  g.fillStyle=color; g.save(); g.rotate(-.2-w*.75);
-  g.beginPath(); g.ellipse(-1,-4,14,6,-.45,0,7); g.fill(); g.restore();
-  g.restore();
-}
-function sparkle(x,y,t){
-  g.save(); g.globalAlpha=.85;
-  for(let i=0;i<3;i++){
-    const a=t*4+i*2.1, r=13+i*6, sx=x-Math.cos(a)*r*0.6-16, sy=y+Math.sin(a)*r*0.5;
-    g.fillStyle="rgba(255,225,150,"+(0.7-i*0.2)+")";
-    g.beginPath(); g.arc(sx,sy,2.4-i*0.5,0,7); g.fill();
-  }
-  g.restore();
-}
-function feather(x,y,rot,alpha,color){
-  g.save(); g.translate(x,y); g.rotate(rot); g.globalAlpha=alpha;
-  g.fillStyle=color; g.beginPath(); g.ellipse(0,0,7,2.6,0,0,7); g.fill();
-  g.restore();
-}
-function slope(p,t,l,s){ const d=.03,a=at(p,Math.max(0,t-d)),b=at(p,Math.min(1,t+d));
+  g.fillStyle=c; g.save(); g.rotate(-.2-w*.75); g.beginPath(); g.ellipse(-1,-4,14,6,-.45,0,7); g.fill(); g.restore();
+  g.restore(); }
+function sparkle(x,y,t){ g.save();
+  for(let i=0;i<3;i++){ const a=t*4+i*2.1,r=13+i*6;
+    g.fillStyle="rgba(255,225,150,"+(.7-i*.2)+")";
+    g.beginPath(); g.arc(x-Math.cos(a)*r*.6-16,y+Math.sin(a)*r*.5,2.4-i*.5,0,7); g.fill(); }
+  g.restore(); }
+function feather(x,y,rot,a,c){ g.save(); g.translate(x,y); g.rotate(rot); g.globalAlpha=a;
+  g.fillStyle=c; g.beginPath(); g.ellipse(0,0,7,2.6,0,0,7); g.fill(); g.restore(); }
+function slopeOf(p,t,l,s){ const d=.03,a=at(p,Math.max(0,t-d)),b=at(p,Math.min(1,t+d));
   return Math.max(-1,Math.min(1,Math.atan2(PY(b,l,s)-PY(a,l,s),PX(Math.min(1,t+d),l)-PX(Math.max(0,t-d),l)))); }
 
-/* ---------------- loop ---------------- */
-function frame(){
-  requestAnimationFrame(frame);
+function frame(){ requestAnimationFrame(frame);
   if(stage==="menu") return;
   if(els.sky.clientWidth!==lw||els.sky.clientHeight!==lh) sizeField();
-  flap+=.34;
-  const l=lane(), s=span();
+  flap+=.34; const l=lane(),s=span();
   sky(); character(l); guide(l,s);
-
-  if(!anim){
-    const y=PY(at(ideal,0),l,s);
-    bird(PX(0,l),y,0,HUE[tone],1,true);
-    return;
-  }
+  if(!anim){ bird(PX(0,l),PY(at(ideal,0),l,s),0,HUE[tone],1,true); return; }
   const el=performance.now()-anim.t0;
-
   if(anim.kind==="guide"){
-    if(el<anim.lead){ bird(PX(0,l),PY(at(ideal,0),l,s),0,HUE[tone],1,true); }
-    else{
-      const t=Math.min(1,(el-anim.lead)/anim.dur);
+    if(el<anim.lead) bird(PX(0,l),PY(at(ideal,0),l,s),0,HUE[tone],1,true);
+    else{ const t=Math.min(1,(el-anim.lead)/anim.dur);
       trail(anim.path,t,l,s,HUE[tone],false);
-      bird(PX(t,l),PY(at(anim.path,t),l,s),slope(anim.path,t,l,s),HUE[tone],1,t>=1);
-    }
+      bird(PX(t,l),PY(at(anim.path,t),l,s),slopeOf(anim.path,t,l,s),HUE[tone],1,t>=1); }
     if(el>anim.total){ if(anim.onEnd)anim.onEnd(); anim=null; }
-    return;
-  }
-
+    return; }
   if(anim.kind==="graded"){
     const t=Math.min(1,el/anim.dur);
     trail(anim.path,t,l,s,anim.color,anim.band===0);
     const x=PX(t,l),y=PY(at(anim.path,t),l,s);
     if(anim.band===0&&t<1) sparkle(x,y,el/1000);
-    for(const f of anim.feathers){
-      if(t>f.t){
-        const age=(t-f.t)*anim.dur/1000;
-        const fx=PX(f.t,l)+f.drift*30*age, fy=PY(at(anim.path,f.t),l,s)+42*age*age+18*age;
-        const a=Math.max(0,1-age*0.85);
-        if(a>0.02) feather(fx,fy,f.spin*age*3,a,anim.color);
-      }
-    }
-    bird(x,y,slope(anim.path,t,l,s),anim.color,1,t>=1);
-    if(el>anim.dur+1400) anim=null;
-    return;
-  }
-}
+    for(const f of anim.feathers) if(t>f.t){
+      const age=(t-f.t)*anim.dur/1000, a=Math.max(0,1-age*.85);
+      if(a>.02) feather(PX(f.t,l)+f.drift*30*age,PY(at(anim.path,f.t),l,s)+42*age*age+18*age,f.spin*age*3,a,anim.color); }
+    bird(x,y,slopeOf(anim.path,t,l,s),anim.color,1,t>=1);
+    if(el>anim.dur+1400) anim=null; } }
 requestAnimationFrame(frame);
 
 /* ---------------- menu ---------------- */
-function cards(){
-  els.cards.innerHTML="";
-  ORDER.forEach(k=>{
-    const a=ASSETS[k],n=TONE_N[k];
+function cards(){ els.cards.innerHTML="";
+  ORDER.forEach(k=>{ const a=ASSETS[k],n=TONE_N[k];
     const b=document.createElement("button"); b.className="card";
     b.innerHTML='<div class="ch">'+a.ch+'</div><div class="py">'+a.py+' · Tone '+n+'</div>';
     const cv=document.createElement("canvas"); b.appendChild(cv);
-    b.onclick=()=>open(k);
-    els.cards.appendChild(b);
-    requestAnimationFrame(()=>mini(cv,a.ideal,HUE[n]));
-  });
-}
-function mini(cv,pts,color){
-  const d=Math.min(devicePixelRatio||1,2),w=cv.clientWidth,h=30;
-  cv.width=w*d; cv.height=h*d; const c=cv.getContext("2d"); c.scale(d,d);
+    b.onclick=()=>openTone(k); els.cards.appendChild(b);
+    requestAnimationFrame(()=>mini(cv,a.ideal,HUE[n])); }); }
+function mini(cv,pts,c){ const d=Math.min(devicePixelRatio||1,2),w=cv.clientWidth,h=30;
+  cv.width=w*d; cv.height=h*d; const x=cv.getContext("2d"); x.scale(d,d);
   const v=pts.map(p=>p[1]),lo=Math.min(...v)-1,hi=Math.max(...v)+1;
-  c.strokeStyle=color; c.lineWidth=2.6; c.lineCap="round"; c.lineJoin="round";
-  c.beginPath();
-  for(let i=0;i<=40;i++){ const t=i/40,x=2+t*(w-4),y=4+(1-(at(pts,t)-lo)/(hi-lo))*(h-8);
-    i?c.lineTo(x,y):c.moveTo(x,y); }
-  c.stroke();
-}
+  x.strokeStyle=c; x.lineWidth=2.6; x.lineCap="round"; x.beginPath();
+  for(let i=0;i<=40;i++){const t=i/40; const px=2+t*(w-4),py=4+(1-(at(pts,t)-lo)/(hi-lo))*(h-8); i?x.lineTo(px,py):x.moveTo(px,py);}
+  x.stroke(); }
 
-async function open(k){
-  id=k; tone=TONE_N[k]; ideal=ASSETS[k].ideal;
+async function openTone(k){ id=k; tone=TONE_N[k]; ideal=ASSETS[k].ideal;
   result=null; anim=null; stage="ready";
   if(learnerAudio){URL.revokeObjectURL(learnerAudio);learnerAudio=null;}
   els.title.textContent=ASSETS[k].py+" · Tone "+tone;
   els.picker.classList.add("hidden");
   [els.sky,els.hint,els.mainRow,els.chips,els.back].forEach(e=>e.classList.remove("hidden"));
-  els.verdict.classList.remove("show");
-  els.hint.textContent=HINT[tone];
+  els.verdict.classList.remove("show"); els.hint.textContent=HINT[tone];
   els.recBtn.innerHTML='<span class="dot"></span>Your turn';
   setChips(); sizeField();
-  try{ await decode(k); }catch(e){ toast("Couldn't load the teacher's voice."); }
-}
+  try{ await decode(k); }catch(e){ toast("Couldn't load the teacher's voice."); } }
 function menu(){ stopAll(); stage="menu"; anim=null; id=null;
-  els.title.textContent="Flight Academy · 小鸟";
-  els.picker.classList.remove("hidden");
+  els.title.textContent="Flight Academy · 小鸟"; els.picker.classList.remove("hidden");
   [els.sky,els.hint,els.mainRow,els.chips,els.back].forEach(e=>e.classList.add("hidden")); }
 els.back.onclick=menu;
-
 function cue(t,ms){ els.cue.textContent=t; els.cue.classList.add("show");
   clearTimeout(cue._t); if(ms) cue._t=setTimeout(()=>els.cue.classList.remove("show"),ms); }
 
-/* ---------------- listen ---------------- */
-function listen(withAudio,onEnd){
-  stopAll(); els.verdict.classList.remove("show");
-  const c=audio(), t0=withAudio?playNative():c.currentTime+0.05;
+function listen(withAudio,onEnd){ stopAll(); els.verdict.classList.remove("show");
+  const c=audio(), t0=withAudio?playNative():c.currentTime+.05;
   const lead=Math.max(0,(t0-c.currentTime)*1000)+(withAudio?ASSETS[id].takeoffMs:0);
   const dur=ASSETS[id].flightMs, total=lead+dur+400;
   cue(withAudio?"Listen":"The shape",total);
-  anim={kind:"guide",path:ideal,t0:performance.now(),lead:lead,dur:dur,total:total,onEnd:onEnd};
-}
+  anim={kind:"guide",path:ideal,t0:performance.now(),lead:lead,dur:dur,total:total,onEnd:onEnd}; }
 els.listenBtn.onclick=()=>{ if(stage!=="recording") listen(true); };
 
 /* ==================================================================
-   Pitch tracking — scoring only, never drawn
+   Capture — full PCM, so the WAV we save is exactly what we judged
    ================================================================== */
-function tracker(sr){
-  const dec=Math.max(1,Math.round(sr/12000)), s=sr/dec;
-  const tmin=Math.floor(s/450), tmax=Math.ceil(s/55), win=tmax*2;   /* floor 55 Hz: his
-     dip and creak register go well below the old 70 Hz bound */
-  const d=new Float32Array(tmax+2),cm=new Float32Array(tmax+2);
-  return function(block){
-    const n=Math.floor(block.length/dec); if(n<win) return null;
-    const x=new Float32Array(win),off=n-win;
-    for(let i=0;i<win;i++) x[i]=block[(off+i)*dec];
-    let e=0; for(let i=0;i<win;i++) e+=x[i]*x[i];
-    if(Math.sqrt(e/win)<0.0035) return null;
-    const half=win>>1;
-    for(let t=tmin;t<=tmax;t++){ let a=0; for(let i=0;i<half;i++){const dd=x[i]-x[i+t]; a+=dd*dd;} d[t]=a; }
-    let run=0; for(let t=tmin;t<=tmax;t++){ run+=d[t]; cm[t]=d[t]*(t-tmin+1)/Math.max(1e-9,run); }
-    let best=-1,bv=2;
-    for(let t=tmin+1;t<tmax;t++) if(cm[t]<bv){bv=cm[t];best=t;}
-    if(bv>0.55||best<0) return null;               /* forgiving clarity gate */
-    const a=cm[best-1],b=cm[best],c=cm[best+1],den=a-2*b+c;
-    const f0=s/(best+(den?0.5*(a-c)/den:0));
-    return (f0>=55&&f0<=450)?f0:null;              /* NO continuity seed here —
-       the old version locked onto the first frame (the attack) and dragged
-       the whole contour with it. Octaves are resolved globally, after. */
-  };
-}
+let capNode=null,micNode=null,pcm=[],pcmLen=0,attemptStart=0,recSR=48000;
+const WORKLET='class C extends AudioWorkletProcessor{process(i){const c=i[0][0];if(c)this.port.postMessage(new Float32Array(c));return true}}registerProcessor("cap",C)';
 
-/* ---------- post-attempt analysis ---------- */
-function analyse(raw){
-  let v=raw.filter(p=>p.f0);
-  if(v.length<8) return null;
-
-  /* 1. global octave resolution against a robust centre, not the first frame */
-  const sorted=v.map(p=>p.f0).slice().sort((a,b)=>a-b);
-  let est=sorted[Math.floor(sorted.length/2)];
-  const fixed=[];
-  for(const p of v){
-    let c=[p.f0/2,p.f0,p.f0*2].reduce((m,x)=>Math.abs(Math.log2(x/est))<Math.abs(Math.log2(m/est))?x:m);
-    if(Math.abs(12*Math.log2(c/est))>8) continue;
-    est=est*0.75+c*0.25;
-    fixed.push({t:p.t,f0:c});
-  }
-  if(fixed.length<8) return null;
-
-  /* 2. bridge short unvoiced gaps — a creaky third-tone bottom is a real
-     part of the syllable, not the end of it */
-  const bridged=[];
-  for(let i=0;i<fixed.length;i++){
-    bridged.push(fixed[i]);
-    if(i+1<fixed.length){
-      const gap=fixed[i+1].t-fixed[i].t;
-      if(gap>40&&gap<=280){
-        const n=Math.round(gap/20);
-        for(let j=1;j<n;j++){
-          const u=j/n;
-          bridged.push({t:fixed[i].t+gap*u,
-            f0:Math.pow(2,Math.log2(fixed[i].f0)*(1-u)+Math.log2(fixed[i+1].f0)*u)});
-        }
-      }
-    }
-  }
-  /* 3. keep the longest continuous stretch */
-  let bA=0,bB=0,a=0;
-  for(let i=1;i<=bridged.length;i++){
-    if(i===bridged.length||bridged[i].t-bridged[i-1].t>300){
-      if(i-a>bB-bA){bA=a;bB=i;} a=i;
-    }
-  }
-  let run=bridged.slice(bA,bB);
-  if(run.length<8) return null;
-
-  /* 4. drop the attack and the release — the sustained vowel is the tone */
-  const t0=run[0].t,t1=run[run.length-1].t,len=t1-t0;
-  const head=Math.min(110,len*0.22), tail=Math.min(70,len*0.12);
-  const core=run.filter(p=>p.t>=t0+head&&p.t<=t1-tail);
-  if(core.length<6) return null;
-
-  /* 5. calibrate to the LEARNER's own register, never the teacher's */
-  const cs=core.map(p=>p.f0).slice().sort((a,b)=>a-b);
-  const med=cs[Math.floor(cs.length/2)];
-  userBaseline=userBaseline?userBaseline*0.6+med*0.4:med;
-  const st=core.map(p=>({t:(p.t-core[0].t)/Math.max(1,(core[core.length-1].t-core[0].t)),
-                         v:12*Math.log2(p.f0/med)}));
-
-  /* 6. resample + light smoothing */
-  const N=24,c2=[];
-  for(let i=0;i<N;i++){
-    const t=i/(N-1);
-    let lo=0; while(lo<st.length-2&&st[lo+1].t<t) lo++;
-    const p=st[lo],q=st[Math.min(st.length-1,lo+1)];
-    const u=(t-p.t)/Math.max(1e-6,q.t-p.t);
-    c2.push(p.v+(q.v-p.v)*Math.max(0,Math.min(1,u)));
-  }
-  const sm=c2.map((_,i)=>{
-    const w=c2.slice(Math.max(0,i-1),i+2); return w.reduce((x,y)=>x+y,0)/w.length; });
-  return {c:sm,durMs:len,frames:core.length};
-}
-
-const clamp=x=>Math.max(0,Math.min(100,x));
-const mean=a=>a.reduce((x,y)=>x+y,0)/a.length;
-function score(c){
-  const n=c.length, head=mean(c.slice(0,Math.round(n*0.3))), tail=mean(c.slice(-Math.round(n*0.3)));
-  if(tone===1){
-    const drift=Math.abs(tail-head);
-    const sp=c.slice().sort((a,b)=>a-b);
-    const spread=sp[Math.round(n*0.9)]-sp[Math.round(n*0.1)];
-    return clamp(100-13*Math.max(0,drift-1.3)-11*Math.max(0,spread-2.4));
-  }
-  if(tone===2) return clamp(100*(tail-head+0.6)/4.0);
-  if(tone===4) return clamp(100*(head-tail+0.6)/5.0);
-  /* tone 3: dip then recover */
-  let mi=2; for(let i=2;i<n-2;i++) if(c[i]<c[mi]) mi=i;
-  const fall=mean(c.slice(0,3))-c[mi], rise=mean(c.slice(-3))-c[mi];
-  return clamp(58*Math.min(1,fall/2.2)+42*Math.min(1,rise/1.8));
-}
-const bandOf=s=>BANDS.findIndex(b=>s>=b.min);
-
-/* ---------------- recording ---------------- */
-let analyser=null,micNode=null,tr=null,cap=null,rid=0,raw=[],recT0=0,lastVoice=0,gotVoice=0;
-
-async function turn(){
-  if(stage==="recording") return stop();
-  stopAll(); els.verdict.classList.remove("show");
-  try{ await getMic(); }catch(e){ toast("Microphone blocked — check permissions."); return; }
-  stage="listening";
-  listen(true,()=>countIn());
-}
 async function getMic(){ if(stream) return stream;
   stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
   return stream; }
-function countIn(){
-  stage="counting"; let n=3;
-  els.count.textContent=n; els.count.classList.add("show"); cue("Get ready");
+async function startCapture(){
+  const c=audio(); recSR=c.sampleRate; pcm=[]; pcmLen=0;
+  micNode=c.createMediaStreamSource(stream);
+  try{
+    if(!c._capReady){ await c.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET],{type:"application/javascript"}))); c._capReady=true; }
+    capNode=new AudioWorkletNode(c,"cap");
+    capNode.port.onmessage=e=>{ pcm.push(e.data); pcmLen+=e.data.length; };
+  }catch(err){
+    capNode=c.createScriptProcessor(2048,1,1);
+    capNode.onaudioprocess=e=>{ const d=new Float32Array(e.inputBuffer.getChannelData(0)); pcm.push(d); pcmLen+=d.length; };
+    capNode.connect(c.destination);
+  }
+  micNode.connect(capNode);
+}
+function stopCapture(){ if(micNode){micNode.disconnect();micNode=null;}
+  if(capNode){ try{capNode.disconnect();}catch(e){} capNode=null; } }
+function flat(from,to){ const out=new Float32Array(Math.max(0,to-from)); let i=0,pos=0;
+  for(const ch of pcm){ for(let j=0;j<ch.length;j++,pos++){ if(pos>=from&&pos<to) out[i++]=ch[j]; } }
+  return out; }
+function rmsOf(a){ let e=0; for(let i=0;i<a.length;i++) e+=a[i]*a[i]; return Math.sqrt(e/Math.max(1,a.length)); }
+function toWav(f32,sr){ const n=f32.length,buf=new ArrayBuffer(44+n*2),dv=new DataView(buf);
+  const w=(o,s)=>{for(let i=0;i<s.length;i++)dv.setUint8(o+i,s.charCodeAt(i));};
+  w(0,"RIFF"); dv.setUint32(4,36+n*2,true); w(8,"WAVE"); w(12,"fmt ");
+  dv.setUint32(16,16,true); dv.setUint16(20,1,true); dv.setUint16(22,1,true);
+  dv.setUint32(24,sr,true); dv.setUint32(28,sr*2,true); dv.setUint16(32,2,true); dv.setUint16(34,16,true);
+  w(36,"data"); dv.setUint32(40,n*2,true);
+  for(let i=0;i<n;i++){ const s=Math.max(-1,Math.min(1,f32[i])); dv.setInt16(44+i*2,s<0?s*32768:s*32767,true); }
+  return buf; }
+
+/* ==================================================================
+   Pitch tracking + analysis  (offline, over the captured PCM)
+   ================================================================== */
+function trackOffline(x,sr,floor){
+  const dec=Math.max(1,Math.round(sr/12000)), s=sr/dec;
+  const tmin=Math.floor(s/CFG.f0Max), tmax=Math.ceil(s/CFG.f0Min), win=tmax*2;
+  const need=win*dec, hop=Math.round(sr*0.010);
+  const gate=floor*Math.pow(10,CFG.gateDb/20);
+  const d=new Float32Array(tmax+2), cm=new Float32Array(tmax+2), out=[];
+  for(let p=0;p+need<x.length;p+=hop){
+    const seg=x.subarray(p,p+need);
+    if(rmsOf(seg)<Math.max(gate,0.0012)){ out.push({t:p/sr*1000,f0:null}); continue; }
+    const b=new Float32Array(win);
+    for(let i=0;i<win;i++) b[i]=seg[i*dec];
+    const half=win>>1;
+    for(let t=tmin;t<=tmax;t++){ let a=0; for(let i=0;i<half;i++){const q=b[i]-b[i+t]; a+=q*q;} d[t]=a; }
+    let run=0; for(let t=tmin;t<=tmax;t++){ run+=d[t]; cm[t]=d[t]*(t-tmin+1)/Math.max(1e-9,run); }
+    let best=-1,bv=2; for(let t=tmin+1;t<tmax;t++) if(cm[t]<bv){bv=cm[t];best=t;}
+    if(bv>CFG.clarity||best<0){ out.push({t:p/sr*1000,f0:null}); continue; }
+    const a1=cm[best-1],b1=cm[best],c1=cm[best+1],den=a1-2*b1+c1;
+    const f0=s/(best+(den?0.5*(a1-c1)/den:0));
+    out.push({t:p/sr*1000,f0:(f0>=CFG.f0Min&&f0<=CFG.f0Max)?f0:null});
+  }
+  return out;
+}
+
+function analyse(raw){
+  let v=raw.filter(p=>p.f0); if(v.length<8) return null;
+  /* octaves resolved globally against a robust centre, never the first frame */
+  const so=v.map(p=>p.f0).slice().sort((a,b)=>a-b);
+  let est=so[so.length>>1]; const fixed=[];
+  for(const p of v){
+    const c=[p.f0/2,p.f0,p.f0*2].reduce((m,x)=>Math.abs(Math.log2(x/est))<Math.abs(Math.log2(m/est))?x:m);
+    if(Math.abs(12*Math.log2(c/est))>8) continue;
+    est=est*.75+c*.25; fixed.push({t:p.t,f0:c}); }
+  if(fixed.length<8) return null;
+  /* bridge short unvoiced gaps: a creaky third-tone bottom is part of the syllable */
+  const br=[];
+  for(let i=0;i<fixed.length;i++){ br.push(fixed[i]);
+    if(i+1<fixed.length){ const gap=fixed[i+1].t-fixed[i].t;
+      if(gap>20&&gap<=CFG.bridgeMs){ const n=Math.round(gap/10);
+        for(let j=1;j<n;j++){ const u=j/n;
+          br.push({t:fixed[i].t+gap*u,f0:Math.pow(2,Math.log2(fixed[i].f0)*(1-u)+Math.log2(fixed[i+1].f0)*u)}); } } } }
+  let bA=0,bB=0,a=0;
+  for(let i=1;i<=br.length;i++) if(i===br.length||br[i].t-br[i-1].t>CFG.bridgeMs){ if(i-a>bB-bA){bA=a;bB=i;} a=i; }
+  const run=br.slice(bA,bB); if(run.length<8) return null;
+  /* attack trimmed. TAIL IS KEPT — the fall is a fourth tone's quietest part */
+  const t0=run[0].t,t1=run[run.length-1].t,len=t1-t0;
+  const head=Math.min(CFG.headTrimMs,len*0.22);
+  const core=run.filter(p=>p.t>=t0+head&&p.t<=t1-CFG.tailTrimMs);
+  if(core.length<6||len<140) return null;
+  const cs=core.map(p=>p.f0).slice().sort((a,b)=>a-b), med=cs[cs.length>>1];
+  const st=core.map(p=>({t:(p.t-core[0].t)/Math.max(1,core[core.length-1].t-core[0].t),v:12*Math.log2(p.f0/med)}));
+  const N=24,c2=[];
+  for(let i=0;i<N;i++){ const t=i/(N-1); let lo=0;
+    while(lo<st.length-2&&st[lo+1].t<t) lo++;
+    const p=st[lo],q=st[Math.min(st.length-1,lo+1)],u=(t-p.t)/Math.max(1e-6,q.t-p.t);
+    c2.push(p.v+(q.v-p.v)*Math.max(0,Math.min(1,u))); }
+  const sm=c2.map((_,i)=>{ const w=c2.slice(Math.max(0,i-1),i+2); return w.reduce((x,y)=>x+y,0)/w.length; });
+  return {c:sm,durMs:len,frames:core.length,baselineHz:Math.round(med*10)/10,
+          coverage:Math.round(100*v.length/Math.max(1,raw.length))};
+}
+
+/* ---------- ONE scoring rule for all four tones ----------
+   Every tone is judged by the same two quantities: how much the pitch
+   moved, and how well that movement correlates with the tone's shape.
+   Tone 1 is the case where "not moving" is the correct answer, so it
+   reads the same movement measure with the sign reversed. This is what
+   puts the four scores on a comparable scale. */
+const TMPL={
+  2:t=>-1+2*t,
+  3:t=> t<0.30 ? -3.3*t : (t<0.60 ? -1 : -1+1.9*(t-0.60)/0.40),
+  4:t=> 1-2*t
+};
+const clamp01=x=>Math.max(0,Math.min(1,x));
+function corr(a,b){ const n=a.length;
+  const ma=a.reduce((x,y)=>x+y,0)/n, mb=b.reduce((x,y)=>x+y,0)/n;
+  let sa=0,sb=0,sab=0;
+  for(let i=0;i<n;i++){ const da=a[i]-ma,db=b[i]-mb; sa+=da*da; sb+=db*db; sab+=da*db; }
+  return (sa<1e-9||sb<1e-9)?0:sab/Math.sqrt(sa*sb); }
+function fitAll(c){
+  const n=c.length, s=c.slice().sort((a,b)=>a-b);
+  const range=s[Math.round(n*0.9)]-s[Math.round(n*0.1)];   /* movement, semitones */
+  const f={};
+  f[1]=100*clamp01(1-(range-CFG.t1RangeFree)/CFG.t1RangeSpan);
+  const amp=clamp01((range-CFG.ampFloor)/CFG.ampSpan);
+  for(const k of [2,3,4]){
+    const tm=[]; for(let i=0;i<n;i++) tm.push(TMPL[k](i/(n-1)));
+    f[k]=100*clamp01((corr(c,tm)+CFG.corrOff)/CFG.corrSpan)*amp;
+  }
+  return {fit:f,range:range};
+}
+function judge(c){
+  const {fit,range}=fitAll(c);
+  let best=1; for(const k of [2,3,4]) if(fit[k]>fit[best]) best=k;
+  let s=fit[tone], vetoed=null;
+  if(best!==tone){
+    const gap=fit[best]-fit[tone];
+    if(gap>CFG.vetoHard){ s=Math.min(s,24); vetoed=best; }
+    else if(gap>CFG.vetoSoft){ s=Math.min(s,59); vetoed=best; }
+  }
+  return {score:Math.round(s),fit:fit,range:range,best:best,vetoed:vetoed};
+}
+const bandOf=s=>BANDS.findIndex(b=>s>=b.min);
+
+/* ---------------- attempt flow ---------------- */
+let rid=0,floorRms=0.002,recT0=0,lastVoice=0,voiceMs=0;
+
+async function turn(){
+  if(stage==="recording") return finish();
+  stopAll(); els.verdict.classList.remove("show");
+  try{ await getMic(); }catch(e){ toast("Microphone blocked — check permissions."); return; }
+  stage="listening"; listen(true,()=>countIn());
+}
+async function countIn(){
+  stage="counting";
+  await startCapture();               /* capture starts NOW: the count-in is our room tone */
+  let n=3; els.count.textContent=n; els.count.classList.add("show"); cue("Get ready");
   const iv=setInterval(()=>{ n--;
     if(n===0){ clearInterval(iv); els.count.classList.remove("show"); begin(); }
     else els.count.textContent=n; },620);
 }
 function begin(){
-  const c=audio();
-  micNode=c.createMediaStreamSource(stream);
-  analyser=c.createAnalyser(); analyser.fftSize=2048; micNode.connect(analyser);
-  cap=new Float32Array(analyser.fftSize); tr=tracker(c.sampleRate);
-  chunks=[];
-  try{
-    const m=["audio/webm","audio/mp4"].find(x=>window.MediaRecorder&&MediaRecorder.isTypeSupported(x));
-    recorder=m?new MediaRecorder(stream,{mimeType:m}):null;
-    if(recorder){ recorder.ondataavailable=e=>e.data.size&&chunks.push(e.data);
-      recorder.onstop=()=>{ if(chunks.length) learnerAudio=URL.createObjectURL(new Blob(chunks,{type:recorder.mimeType})); setChips(); };
-      recorder.start(); }
-  }catch(e){ recorder=null; }
-
-  raw=[]; recT0=performance.now(); lastVoice=0; gotVoice=0;
+  /* room floor from everything captured during the count-in */
+  const room=flat(0,pcmLen);
+  floorRms=Math.max(0.0006,rmsOf(room.subarray(Math.floor(room.length*0.25))));
+  attemptStart=pcmLen;
+  recT0=performance.now(); lastVoice=0; voiceMs=0;
   stage="recording";
   els.recBtn.innerHTML='<span class="dot"></span>Done';
-  els.listenBtn.disabled=true;
+  els.listenBtn.disabled=true; els.level.classList.add("show");
   cue("Fly it yourself");
-  /* the bird flies the guide while you speak — a karaoke ball, not a mirror */
   anim={kind:"guide",path:ideal,t0:performance.now(),lead:0,dur:ASSETS[id].flightMs,total:1e9};
-
+  let seen=attemptStart;
+  const gate=floorRms*Math.pow(10,CFG.gateDb/20);
   const step=()=>{
     if(stage!=="recording") return;
-    analyser.getFloatTimeDomainData(cap);
     const t=performance.now()-recT0;
-    const f0=tr(cap);
-    raw.push({t:t,f0:f0});
-    if(f0){ lastVoice=t; gotVoice+=16; }
-    /* generous window; stop on a real pause, not on a fixed clock */
-    if(t>5000||(gotVoice>250&&lastVoice&&t-lastVoice>600)) return stop();
+    if(pcmLen>seen){
+      const r=rmsOf(flat(seen,pcmLen)); seen=pcmLen;
+      els.levelBar.style.width=Math.min(100,(r/Math.max(gate,1e-6))*40)+"%";
+      if(r>gate){ lastVoice=t; voiceMs+=16; }
+    }
+    if(t>CFG.maxMs||(voiceMs>200&&lastVoice&&t-lastVoice>CFG.silenceMs)) return finish();
     rid=requestAnimationFrame(step);
   };
   rid=requestAnimationFrame(step);
 }
-function stop(){
+function finish(){
   if(stage!=="recording") return;
   cancelAnimationFrame(rid); stage="done"; anim=null;
   els.recBtn.innerHTML='<span class="dot"></span>Try again';
-  els.listenBtn.disabled=false; els.cue.classList.remove("show");
-  try{ recorder&&recorder.state!=="inactive"&&recorder.stop(); }catch(e){}
-  if(micNode){ micNode.disconnect(); micNode=null; }
+  els.listenBtn.disabled=false; els.cue.classList.remove("show"); els.level.classList.remove("show");
+  const audioF32=flat(attemptStart,pcmLen);
+  stopCapture();
 
+  const raw=trackOffline(audioF32,recSR,floorRms);
   const a=analyse(raw);
-  if(!a){ result=null; setChips();
-    els.hint.textContent="Didn't catch that — try again a little louder."; return; }
-  const sc=Math.round(score(a.c));
-  result={score:sc,band:bandOf(sc)};
+  const wav=toWav(audioF32,recSR);
+  if(learnerAudio) URL.revokeObjectURL(learnerAudio);
+  learnerAudio=URL.createObjectURL(new Blob([wav],{type:"audio/wav"}));
+
+  if(!a){
+    result=null; setChips();
+    els.hint.textContent="Didn't quite catch that — have another go.";
+    lastDebug="no usable pitch\nfloor "+floorRms.toFixed(4)+"  gate +"+CFG.gateDb+" dB\nframes "+raw.length;
+    record(wav,null,null); return;
+  }
+  const j=judge(a.c);
+  result={score:j.score,band:bandOf(j.score),vetoed:j.vetoed};
   els.hint.textContent=HINT[tone];
-  showResult(true);
-  setChips();
+  lastDebug="score "+j.score+"  band "+BANDS[result.band].name
+    +"\nfit  T1 "+Math.round(j.fit[1])+"  T2 "+Math.round(j.fit[2])
+    +"  T3 "+Math.round(j.fit[3])+"  T4 "+Math.round(j.fit[4])
+    +"\nbest T"+j.best+(j.vetoed?"  VETO -> capped":"")
+    +"\nrange "+j.range.toFixed(2)+" st   dur "+Math.round(a.durMs)+" ms"
+    +"\nbaseline "+a.baselineHz+" Hz   voiced "+a.coverage+"%"
+    +"\nfloor "+floorRms.toFixed(4)+"  gate +"+CFG.gateDb+" dB";
+  showResult(true); setChips();
+  record(wav,a,j);
 }
 els.recBtn.onclick=turn;
 
@@ -603,16 +543,12 @@ function showResult(auto){
   if(!result) return;
   const b=BANDS[result.band];
   els.vband.textContent=b.name; els.vband.style.color=b.color;
-  els.vmsg.textContent=MSG[tone][result.band];
+  els.vmsg.textContent=result.vetoed?VETO_MSG[tone]:MSG[tone][result.band];
   els.verdict.classList.add("show");
-  const seed=(result.band+1)*1.7+tone;
-  const path=designed(result.band,seed);
-  anim={kind:"graded",path:path,band:result.band,color:b.color,
-        feathers:feathers(result.band,path,seed),
+  const seed=(result.band+1)*1.7+tone, path=designed(result.band,seed);
+  anim={kind:"graded",path:path,band:result.band,color:b.color,feathers:feathersFor(result.band,seed),
         t0:performance.now()+(auto?260:0),dur:Math.max(900,ASSETS[id].flightMs*1.35)};
 }
-
-/* ---------------- replay ---------------- */
 function setChips(){ $("cMine").disabled=!learnerAudio; $("cFlight").disabled=!result; }
 $("cTeacher").onclick=()=>{ stopAll(); playNative(); cue("Teacher",1400); };
 $("cMine").onclick=()=>{ stopAll(); playMine(); cue("Your voice",1400); };
@@ -621,6 +557,74 @@ let ael=null;
 function playMine(){ if(!learnerAudio) return; if(!ael) ael=new Audio();
   ael.src=learnerAudio; ael.currentTime=0; ael.play().catch(()=>{}); }
 function stopAll(){ stopNative(); if(ael) ael.pause(); anim=null; }
+
+/* ==================================================================
+   Developer capture mode
+   ================================================================== */
+function b64enc(buf){ const u=new Uint8Array(buf); let s="";
+  for(let i=0;i<u.length;i+=8192) s+=String.fromCharCode.apply(null,u.subarray(i,i+8192));
+  return btoa(s); }
+function record(wav,a,j){
+  if(!dev) return;
+  capture.push({
+    n:capture.length+1, utc:new Date().toISOString(),
+    target_tone:tone, character:ASSETS[id].ch, intended_quality:intended,
+    sample_rate:recSR, duration_s:+(wav.byteLength-44)/2/recSR,
+    settings:{gate_db:CFG.gateDb,silence_ms:CFG.silenceMs,head_trim_ms:CFG.headTrimMs,
+              tail_trim_ms:CFG.tailTrimMs,f0_min:CFG.f0Min,f0_max:CFG.f0Max,clarity:CFG.clarity},
+    measurements:a?{contour_st:a.c.map(x=>+x.toFixed(2)),range_st:+j.range.toFixed(2),
+              duration_ms:Math.round(a.durMs),frames:a.frames,baseline_hz:a.baselineHz,
+              voiced_pct:a.coverage,room_floor_rms:+floorRms.toFixed(5)}:null,
+    fit:j?{1:Math.round(j.fit[1]),2:Math.round(j.fit[2]),3:Math.round(j.fit[3]),4:Math.round(j.fit[4]),
+           best_tone:j.best,vetoed:j.vetoed}:null,
+    result:j?{score:j.score,band:BANDS[bandOf(j.score)].name}:{score:null,band:"NO SCORE"},
+    wav_base64:b64enc(wav)
+  });
+  els.devTag.textContent="DEV "+capture.length;
+}
+function download(blob,name){ const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},3000); }
+
+let taps=0,tapT=0;
+els.title.onclick=()=>{ const n=Date.now();
+  taps=(n-tapT<800)?taps+1:1; tapT=n;
+  if(taps>=5){ taps=0; dev=true; els.devTag.textContent="DEV "+capture.length; devSheet(); } };
+els.devTag.onclick=()=>{ if(dev) devSheet(); };
+
+function devSheet(){
+  const sh=document.createElement("div"); sh.className="sheet";
+  const bytes=capture.reduce((s,c)=>s+c.wav_base64.length,0);
+  sh.innerHTML=
+   '<div class="sheet-in">'
+   +'<h2>Developer</h2>'
+   +'<div><span class="lab">Mic sensitivity</span><span class="val" id="vGate">+'+CFG.gateDb+' dB over room</span>'
+   +'<input type="range" id="sGate" min="2" max="16" step="0.5" value="'+CFG.gateDb+'"></div>'
+   +'<div><span class="lab">Silence timeout</span><span class="val" id="vSil">'+CFG.silenceMs+' ms</span>'
+   +'<input type="range" id="sSil" min="300" max="1600" step="50" value="'+CFG.silenceMs+'"></div>'
+   +'<div><span class="lab">Intended quality (next attempt)</span>'
+   +'<div class="seg" id="segQ"><button data-q="correct">Correct</button><button data-q="almost">Almost</button><button data-q="wrong">Wrong</button></div></div>'
+   +'<div class="lab">Last attempt</div><div class="dbg">'+(lastDebug||"—")+'</div>'
+   +'<button class="big" id="dlBtn">Export '+capture.length+' attempts ('+Math.round(bytes/1024/1024*0.75)+' MB)</button>'
+   +'<button class="big ghost" id="clrBtn">Clear captures</button>'
+   +'<button class="big ghost" id="closeBtn">Close</button></div>';
+  document.body.appendChild(sh);
+  const q=sh.querySelector("#segQ");
+  [...q.children].forEach(b=>{ b.setAttribute("aria-pressed",b.dataset.q===intended);
+    b.onclick=()=>{ intended=b.dataset.q; [...q.children].forEach(x=>x.setAttribute("aria-pressed",x.dataset.q===intended)); }; });
+  sh.querySelector("#sGate").oninput=e=>{ CFG.gateDb=+e.target.value; sh.querySelector("#vGate").textContent="+"+CFG.gateDb+" dB over room"; };
+  sh.querySelector("#sSil").oninput=e=>{ CFG.silenceMs=+e.target.value; sh.querySelector("#vSil").textContent=CFG.silenceMs+" ms"; };
+  sh.querySelector("#dlBtn").onclick=()=>{
+    if(!capture.length) return toast("Nothing captured yet");
+    const doc={schema:"fa-calibration-1",tool:"flight-academy-demo-v4",
+      exported_utc:new Date().toISOString(),count:capture.length,attempts:capture};
+    download(new Blob([JSON.stringify(doc)],{type:"application/json"}),
+      "fa_calibration_"+new Date().toISOString().replace(/[:.]/g,"").slice(0,15)+".json");
+  };
+  sh.querySelector("#clrBtn").onclick=()=>{ capture=[]; els.devTag.textContent="DEV 0"; sh.remove(); };
+  sh.querySelector("#closeBtn").onclick=()=>sh.remove();
+  sh.onclick=e=>{ if(e.target===sh) sh.remove(); };
+}
 
 let tt=0;
 function toast(m){ els.toast.textContent=m; els.toast.classList.add("show");
