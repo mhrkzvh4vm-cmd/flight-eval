@@ -205,14 +205,98 @@ function at(p,t){ t=Math.max(0,Math.min(1,t));
   for(let i=0;i<p.length-1;i++) if(t<=p[i+1][0]){
     const u=(t-p[i][0])/Math.max(1e-6,p[i+1][0]-p[i][0]); return p[i][1]+(p[i+1][1]-p[i][1])*u; }
   return p[p.length-1][1]; }
-function designed(b,seed){ const s=span(),amp=(s.hi-s.lo)*[0,.035,.095,.185][b],sag=[0,0,.04,.11][b]*(s.hi-s.lo),out=[];
-  for(let i=0;i<=80;i++){ const t=i/80; let v=at(ideal,t);
-    if(amp){ v+=Math.sin(t*6.283*(3.4+seed*.7)+seed)*amp+Math.sin(t*6.283*(6.9+seed*.4)+seed*2.1)*amp*.45; v-=sag*t; }
-    out.push([t,v]); } return out; }
-function feathersFor(b,seed){ const n=[0,0,2,5][b],o=[];
-  for(let i=0;i<n;i++) o.push({t:Math.min(.95,.22+.62*((i+.5)/n)+((seed*7+i*13)%10)/120),
-    drift:((i%2)?1:-1)*(.4+(i%3)*.25),spin:(i%2?1:-1)});
-  return o; }
+/* ==================================================================
+   PERFORMANCE MODEL
+
+   A ROUTE is a list of FIGURES joined by TRANSITIONS. Today a route holds
+   one figure; tone pairs and sentences add figures without changing any of
+   this. The bird performs the route as one continuous movement — it never
+   plots it.
+
+   Three things make a movement read as performance rather than playback:
+     TEMPO      — a dive accelerates, a climb eases at the top, a third
+                  tone dwells in the low place and then surges
+     BODY       — banking, wings tucking and spreading, effort in the beat
+     PHRASING   — anticipation before the figure, follow-through after
+
+   The four quality bands are four PERFORMANCES of the same choreography,
+   differing in conviction, not in amplitude of noise.
+   ================================================================== */
+
+/* tempo curves: performance time -> progress through the figure */
+const TEMPO={
+  1:[[0,0],[0.14,0.12],[0.86,0.88],[1,1]],              /* steady, unhurried  */
+  2:[[0,0],[0.34,0.17],[0.70,0.62],[1,1]],              /* gather, then sweep */
+  3:[[0,0],[0.35,0.30],[0.70,0.60],[1,1]],              /* dwell low, surge   */
+  4:[[0,0],[0.22,0.06],[0.55,0.44],[0.82,0.93],[1,1]]   /* hover, commit, flare */
+};
+const PERF=[
+ {amp:1.00,character:1.00,sag:0.00,unsteady:0.00,effort:1.00,flourish:1.00,feathers:0,sparkle:true },
+ {amp:0.92,character:0.84,sag:0.06,unsteady:0.05,effort:1.20,flourish:0.50,feathers:0,sparkle:false},
+ {amp:0.74,character:0.55,sag:0.20,unsteady:0.18,effort:1.60,flourish:0.12,feathers:2,sparkle:false},
+ {amp:0.50,character:0.30,sag:0.42,unsteady:0.34,effort:2.20,flourish:0.00,feathers:5,sparkle:false}
+];
+const LEAD_MS=300, TAIL_MS=460;
+
+function choreograph(toneN, shape, figureMs, band, seed){
+  const B=PERF[band], tempo=TEMPO[toneN]||TEMPO[1];
+  const h0=at(shape,0);
+  /* a hesitant performance also takes longer to get through the figure */
+  const figMs=figureMs*(1.0+(1-B.character)*0.55);
+  const total=LEAD_MS+figMs+TAIL_MS;
+  const rnd=(k)=>Math.sin(seed*12.9898+k*78.233)*43758.5453%1;
+
+  const feathers=[];
+  for(let i=0;i<B.feathers;i++)
+    feathers.push({u:0.24+0.6*((i+0.5)/B.feathers)+0.05*rnd(i),
+                   drift:(i%2?1:-1)*(0.5+0.3*(i%3)), spin:(i%2?1:-1)});
+
+  function height(u){
+    /* blend the tone's own tempo toward flat time as conviction drops */
+    let p=at(tempo,u)*B.character+u*(1-B.character);
+    /* a tentative performance stalls a little through the hard part */
+    p-=Math.sin(Math.PI*u)*0.10*(1-B.character);
+    p=Math.max(0,Math.min(1,p));
+    let st=h0+(at(shape,p)-h0)*B.amp;
+    st-=B.sag*u*2.6;                 /* running out of lift, fixed scale */
+    if(B.unsteady){
+      const w=Math.abs(at(shape,1)-h0)||3;
+      st+=(Math.sin(u*Math.PI*2.3+seed)*0.6+Math.sin(u*Math.PI*3.7+seed*2.1)*0.4)*B.unsteady*w*0.28;
+    }
+    return {p:p,st:st};
+  }
+
+  return {
+    total:total, figMs:figMs, band:band, feathers:feathers, B:B, toneN:toneN,
+    at(ms){
+      if(ms<LEAD_MS){                       /* ANTICIPATION — gather and set */
+        const u=ms/LEAD_MS, dip=Math.sin(u*Math.PI)*0.55*B.character;
+        return {x:0, st:h0-dip, vy:0, stage:"lead", u:0,
+                spread:0.45+0.5*u, tuck:0, effort:0.25};
+      }
+      if(ms<LEAD_MS+figMs){                 /* THE FIGURE */
+        const u=(ms-LEAD_MS)/figMs;
+        const cur=height(u), d=0.012;
+        const a=height(Math.max(0,u-d)).st, b2=height(Math.min(1,u+d)).st;
+        const vy=(b2-a)/(2*d*figMs/1000);   /* semitones per second */
+        const climbing=Math.max(0,vy), diving=Math.max(0,-vy);
+        return {x:cur.p, st:cur.st, vy:vy, stage:"figure", u:u,
+                spread:Math.min(1.25,0.75+climbing*0.045),
+                tuck:Math.min(1,diving*0.055),
+                effort:(0.35+climbing*0.05)*B.effort};
+      }
+      /* FOLLOW-THROUGH — the movement finishes, it does not stop dead */
+      const u=(ms-LEAD_MS-figMs)/TAIL_MS, e=1-Math.pow(1-u,3);
+      const end=height(1).st;
+      const lift=B.flourish*0.9*Math.sin(Math.min(1,u*1.4)*Math.PI)  /* a small rise on a good one */
+                -(1-B.flourish)*1.6*e;                              /* a sink on a poor one */
+      return {x:1, st:end+lift, vy:0, stage:"tail", u:u,
+              spread:0.7+B.flourish*0.5*(1-e), tuck:0, effort:0.3*B.effort};
+    }
+  };
+}
+
+/* ---------------- painting ---------------- */
 function sky(){ g.setTransform(DPR,0,0,DPR,0,0); g.clearRect(0,0,W,H);
   const gr=g.createLinearGradient(0,0,0,H);
   gr.addColorStop(0,"#AFD0E2"); gr.addColorStop(.5,"#DFECEF"); gr.addColorStop(1,"#F8E8D5");
@@ -225,25 +309,58 @@ function character(l){ g.save();
   g.font='600 '+l.charSize+'px "PingFang SC","Hiragino Sans GB","Songti SC",serif';
   g.textAlign="center"; g.textBaseline="middle"; g.fillStyle="rgba(43,58,66,.90)";
   g.fillText(ASSETS[id].ch,W/2,l.charY); g.restore(); }
-function guide(l,s){ g.save(); g.strokeStyle=HUE[tone]; g.globalAlpha=.30; g.lineWidth=2.5;
+function guide(l,s){ g.save(); g.strokeStyle=HUE[tone]; g.globalAlpha=.28; g.lineWidth=2.5;
   g.setLineDash([6,8]); g.lineCap="round"; g.beginPath();
   for(let i=0;i<=60;i++){const t=i/60,x=PX(t,l),y=PY(at(ideal,t),l,s); i?g.lineTo(x,y):g.moveTo(x,y);}
   g.stroke(); g.restore(); }
-function trail(p,upto,l,s,c,glow){ g.save(); g.strokeStyle=c; g.lineWidth=4.5; g.lineCap="round"; g.lineJoin="round";
-  if(glow){g.shadowColor=c;g.shadowBlur=12;} g.beginPath(); let pen=false;
-  for(const q of p){ if(q[0]>upto) break; const x=PX(q[0],l),y=PY(q[1],l,s); pen?g.lineTo(x,y):(g.moveTo(x,y),pen=true); }
-  g.stroke(); g.restore(); }
-function bird(x,y,ang,c,sc,idle){ g.save(); g.translate(x,y); g.rotate(ang); g.scale(sc,sc);
-  const w=idle?Math.sin(flap*.35)*.14:Math.sin(flap)*.9; g.fillStyle=c;
-  g.save(); g.rotate(-.35+w*.55); g.globalAlpha=.55; g.beginPath(); g.ellipse(-2,-3,12,5,-.5,0,7); g.fill(); g.restore();
-  g.globalAlpha=1; g.beginPath(); g.ellipse(0,0,12,8.5,0,0,7); g.fill();
-  g.beginPath(); g.moveTo(-9,-1); g.lineTo(-20,-6); g.lineTo(-19,3); g.closePath(); g.fill();
+
+/* the ribbon the bird has actually flown */
+function ribbon(perf,ms,l,s,c,glow){
+  const N=70; g.save(); g.strokeStyle=c; g.lineWidth=4.5; g.lineCap="round"; g.lineJoin="round";
+  if(glow){ g.shadowColor=c; g.shadowBlur=13; }
+  g.beginPath(); let pen=false;
+  for(let i=0;i<=N;i++){
+    const t=LEAD_MS+(Math.min(ms,LEAD_MS+perf.figMs)-LEAD_MS)*(i/N);
+    if(t<LEAD_MS) continue;
+    const p=perf.at(t), x=PX(p.x,l), y=PY(p.st,l,s);
+    pen?g.lineTo(x,y):(g.moveTo(x,y),pen=true);
+  }
+  g.stroke(); g.restore();
+}
+
+/* ---------------- the bird ----------------
+   spread: how far the wings reach   tuck: how tightly they fold for a dive
+   effort: how hard it is working, which drives the beat                */
+let beat=0;
+function bird(x,y,bank,c,st){
+  const spread=st.spread==null?1:st.spread, tuck=st.tuck||0, sc=st.scale||1;
+  /* the creature is alive even when the path is level — the body rides its own
+     wingbeat. This moves the bird, never the ribbon. */
+  const bob=Math.cos(beat)*2.1*(1-tuck)*(0.5+0.5*(st.effort||0.5));
+  g.save(); g.translate(x,y+bob); g.rotate(bank); g.scale(sc,sc);
+  const flapAmp=(1-tuck)*0.95, w=Math.sin(beat)*flapAmp;
+  const reach=(0.55+0.7*spread)*(1-tuck*0.55);
+
+  g.fillStyle=c;
+  /* far wing */
+  g.save(); g.rotate(-0.32+w*0.55+tuck*0.5); g.globalAlpha=.5;
+  g.beginPath(); g.ellipse(-2,-3,12*reach,5*(1-tuck*0.4),-.5,0,7); g.fill(); g.restore();
+  g.globalAlpha=1;
+  /* body */
+  g.beginPath(); g.ellipse(0,0,12,8.5,0,0,7); g.fill();
+  /* tail — spreads when braking or flaring */
+  const fan=1+ (st.stage==="tail"?0.5:0) + tuck*0.3;
+  g.beginPath(); g.moveTo(-9,-1); g.lineTo(-20-4*fan,-6*fan); g.lineTo(-19-4*fan,3*fan); g.closePath(); g.fill();
+  /* head */
   g.beginPath(); g.arc(10,-5,6.5,0,7); g.fill();
   g.fillStyle="#E8A44C"; g.beginPath(); g.moveTo(16,-5); g.lineTo(23,-3.2); g.lineTo(16,-1.6); g.closePath(); g.fill();
   g.fillStyle="#FBF7F1"; g.beginPath(); g.arc(12,-6.6,2.2,0,7); g.fill();
   g.fillStyle="#2B3A42"; g.beginPath(); g.arc(12.6,-6.6,1.1,0,7); g.fill();
-  g.fillStyle=c; g.save(); g.rotate(-.2-w*.75); g.beginPath(); g.ellipse(-1,-4,14,6,-.45,0,7); g.fill(); g.restore();
-  g.restore(); }
+  /* near wing */
+  g.fillStyle=c; g.save(); g.rotate(-0.18-w*0.8+tuck*0.55);
+  g.beginPath(); g.ellipse(-1,-4,14*reach,6*(1-tuck*0.4),-.45,0,7); g.fill(); g.restore();
+  g.restore();
+}
 function sparkle(x,y,t){ g.save();
   for(let i=0;i<3;i++){ const a=t*4+i*2.1,r=13+i*6;
     g.fillStyle="rgba(255,225,150,"+(.7-i*.2)+")";
@@ -251,33 +368,46 @@ function sparkle(x,y,t){ g.save();
   g.restore(); }
 function feather(x,y,rot,a,c){ g.save(); g.translate(x,y); g.rotate(rot); g.globalAlpha=a;
   g.fillStyle=c; g.beginPath(); g.ellipse(0,0,7,2.6,0,0,7); g.fill(); g.restore(); }
-function slopeOf(p,t,l,s){ const d=.03,a=at(p,Math.max(0,t-d)),b=at(p,Math.min(1,t+d));
-  return Math.max(-1,Math.min(1,Math.atan2(PY(b,l,s)-PY(a,l,s),PX(Math.min(1,t+d),l)-PX(Math.max(0,t-d),l)))); }
 
+/* bank angle comes from how fast the bird is climbing or diving */
+function bankOf(p,l,s){
+  const scale=(l.B-l.T)/Math.max(1e-6,(s.hi-s.lo));
+  return Math.max(-1.0,Math.min(1.0, -p.vy*scale/((l.R-l.L)/1.1) *1.05));
+}
+
+/* ---------------- loop ---------------- */
 function frame(){ requestAnimationFrame(frame);
   if(stage==="menu") return;
   if(els.sky.clientWidth!==lw||els.sky.clientHeight!==lh) sizeField();
-  flap+=.34; const l=lane(),s=span();
+  const l=lane(),s=span();
   sky(); character(l); guide(l,s);
-  if(!anim){ bird(PX(0,l),PY(at(ideal,0),l,s),0,HUE[tone],1,true); return; }
+
+  if(!anim){ beat+=0.10;
+    bird(PX(0,l),PY(at(ideal,0),l,s),0,HUE[tone],{spread:0.55,tuck:0,stage:"idle"}); return; }
+
   const el=performance.now()-anim.t0;
-  if(anim.kind==="guide"){
-    if(el<anim.lead) bird(PX(0,l),PY(at(ideal,0),l,s),0,HUE[tone],1,true);
-    else{ const t=Math.min(1,(el-anim.lead)/anim.dur);
-      trail(anim.path,t,l,s,HUE[tone],false);
-      bird(PX(t,l),PY(at(anim.path,t),l,s),slopeOf(anim.path,t,l,s),HUE[tone],1,t>=1); }
-    if(el>anim.total){ if(anim.onEnd)anim.onEnd(); anim=null; }
-    return; }
-  if(anim.kind==="graded"){
-    const t=Math.min(1,el/anim.dur);
-    trail(anim.path,t,l,s,anim.color,anim.band===0);
-    const x=PX(t,l),y=PY(at(anim.path,t),l,s);
-    if(anim.band===0&&t<1) sparkle(x,y,el/1000);
-    for(const f of anim.feathers) if(t>f.t){
-      const age=(t-f.t)*anim.dur/1000, a=Math.max(0,1-age*.85);
-      if(a>.02) feather(PX(f.t,l)+f.drift*30*age,PY(at(anim.path,f.t),l,s)+42*age*age+18*age,f.spin*age*3,a,anim.color); }
-    bird(x,y,slopeOf(anim.path,t,l,s),anim.color,1,t>=1);
-    if(el>anim.dur+1400) anim=null; } }
+  if(el<0){ beat+=0.10;
+    bird(PX(0,l),PY(at(ideal,0),l,s),0,anim.color,{spread:0.55,tuck:0,stage:"idle"}); return; }
+
+  const perf=anim.perf, p=perf.at(Math.min(el,perf.total));
+  beat+=0.10+0.30*(p.effort||0.3);
+
+  ribbon(perf,el,l,s,anim.color,perf.band===0&&p.stage!=="lead");
+  const x=PX(p.x,l), y=PY(p.st,l,s);
+
+  if(perf.B.sparkle&&p.stage==="figure") sparkle(x,y,el/1000);
+  for(const f of perf.feathers){
+    if(p.stage==="figure"&&p.u>f.u || p.stage==="tail"){
+      const born=LEAD_MS+f.u*perf.figMs, age=(el-born)/1000;
+      if(age>0){ const fp=perf.at(born), a=Math.max(0,1-age*0.8);
+        if(a>0.02) feather(PX(fp.x,l)+f.drift*32*age, PY(fp.st,l,s)+46*age*age+16*age,
+                           f.spin*age*3.2, a, anim.color); }
+    }
+  }
+  bird(x,y,bankOf(p,l,s),anim.color,p);
+
+  if(el>perf.total+(anim.holdMs||300)){ if(anim.onEnd) anim.onEnd(); anim=null; }
+}
 requestAnimationFrame(frame);
 
 /* ---------------- menu ---------------- */
@@ -317,7 +447,9 @@ function listen(withAudio,onEnd){ stopAll(); els.verdict.classList.remove("show"
   const lead=Math.max(0,(t0-c.currentTime)*1000)+(withAudio?ASSETS[id].takeoffMs:0);
   const dur=ASSETS[id].flightMs, total=lead+dur+400;
   cue(withAudio?"Listen":"The shape",total);
-  anim={kind:"guide",path:ideal,t0:performance.now(),lead:lead,dur:dur,total:total,onEnd:onEnd}; }
+  /* anticipation is timed so the bird launches exactly at the rime */
+  anim={perf:choreograph(tone,ideal,dur,0,1.7),color:HUE[tone],
+        t0:performance.now()+Math.max(0,lead-LEAD_MS),onEnd:onEnd}; }
 els.listenBtn.onclick=()=>{ if(stage!=="recording") listen(true); };
 
 /* ==================================================================
@@ -441,7 +573,11 @@ function corr(a,b){ const n=a.length;
 function features(c){
   const n=c.length;
   const early=(c[0]+c[1]+c[2]+c[3])/4, late=(c[n-1]+c[n-2]+c[n-3]+c[n-4])/4;
-  let mi=0; for(let i=1;i<n;i++) if(c[i]<c[mi]) mi=i;
+  /* Search for the low point INSIDE the syllable. A creaky or decaying tail
+     can drag the global minimum to the final frame, which used to fail the
+     interiority test and reject an otherwise good third tone. */
+  const lo=Math.round(0.06*(n-1)), hi=Math.round(0.78*(n-1));
+  let mi=lo; for(let i=lo+1;i<=hi;i++) if(c[i]<c[mi]) mi=i;
   const s=c.slice().sort((a,b)=>a-b);
   return { early:early, late:late, min:c[mi], minPos:mi/(n-1),
            range:s[Math.round(n*0.9)]-s[Math.round(n*0.1)],
@@ -520,7 +656,8 @@ function begin(){
   els.recBtn.innerHTML='<span class="dot"></span>Done';
   els.listenBtn.disabled=true; els.level.classList.add("show");
   cue("Fly it yourself");
-  anim={kind:"guide",path:ideal,t0:performance.now(),lead:0,dur:ASSETS[id].flightMs,total:1e9};
+  anim={perf:choreograph(tone,ideal,ASSETS[id].flightMs,0,1.7),color:HUE[tone],
+        t0:performance.now(),holdMs:1e9};
   let seen=attemptStart;
   const gate=floorRms*Math.pow(10,CFG.gateDb/20);
   const step=()=>{
@@ -581,9 +718,9 @@ function showResult(auto){
   ? (COACH[tone+"-"+result.best] || "That sounded like a different tone.")
   : MSG[tone][result.band];
   els.verdict.classList.add("show");
-  const seed=(result.band+1)*1.7+tone, path=designed(result.band,seed);
-  anim={kind:"graded",path:path,band:result.band,color:b.color,feathers:feathersFor(result.band,seed),
-        t0:performance.now()+(auto?260:0),dur:Math.max(900,ASSETS[id].flightMs*1.35)};
+  const seed=(result.band+1)*1.7+tone;
+  anim={perf:choreograph(tone,ideal,Math.max(700,ASSETS[id].flightMs),result.band,seed),
+        color:b.color,t0:performance.now()+(auto?280:0),holdMs:700};
 }
 function setChips(){ $("cMine").disabled=!learnerAudio; $("cFlight").disabled=!result; }
 $("cTeacher").onclick=()=>{ stopAll(); playNative(); cue("Teacher",1400); };
