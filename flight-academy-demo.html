@@ -761,7 +761,7 @@ function envelope(x,sr){
     out.push({ms:i/sr*1000, r:Math.sqrt(e/win)}); }
   return out;
 }
-function syllableSplit(x,sr,floor){
+function syllableSplit(x,sr,floor,wantN){
   const env=envelope(x,sr);
   if(env.length<6) return [];
   const gate=Math.max(floor*Math.pow(10,CFG.gateDb/20),0.0012);
@@ -777,12 +777,16 @@ function syllableSplit(x,sr,floor){
     let L=0; for(let k=0;k<i;k++) L=Math.max(L,seg[k].r);
     let R=0; for(let k=i+1;k<seg.length;k++) R=Math.max(R,seg[k].r);
     const nearer=Math.min(L,R);
-    if(nearer<peak*0.35) continue;
+    /* her second syllables can sit at a THIRD of the loudest moment, so a
+       guard keyed to the utterance peak throws away the real boundary */
+    if(nearer<peak*0.10) continue;
     if(seg[i].r<=nearer*CFG.valleyRatio) cuts.push({i:i,ms:seg[i].ms,depth:seg[i].r/nearer});
   }
-  cuts.sort((p,q)=>p.depth-q.depth);
-  const chosen=[]; 
+  cuts.sort((p,q)=>p.depth-q.depth);          /* deepest valley first */
+  const need=wantN?wantN-1:Infinity;
+  const chosen=[];
   for(const c of cuts){
+    if(chosen.length>=need) break;
     if(c.ms-seg[0].ms<CFG.minSylMs||seg[seg.length-1].ms-c.ms<CFG.minSylMs) continue;
     if(chosen.some(o=>Math.abs(o.ms-c.ms)<CFG.minSylMs)) continue;
     chosen.push(c);
@@ -902,7 +906,7 @@ function finish(){
   let sylSpans=[], neutral=null;
   const isPair=!!PAIRS[id];
   let praw=raw, perSyl=[];
-  if(isPair){ praw=despike(resolveOctaves(raw)); sylSpans=syllableSplit(audioF32,recSR,floorRms); }
+  if(isPair){ praw=despike(resolveOctaves(raw)); sylSpans=syllableSplit(audioF32,recSR,floorRms,EX.pattern.length); }
   const syls=isPair?Math.max(1,sylSpans.length):1;
   if(isPair&&sylSpans.length>=EX.pattern.length){
     for(let i=0;i<EX.pattern.length;i++){
@@ -915,8 +919,12 @@ function finish(){
       perSyl.push({tone:want,score:jj.score,fall:jj.f.early-jj.f.late,c:an.c});
     }
   }
-  const a=analyse(isPair&&sylSpans.length>=EX.pattern.length
-                  ? framesBetween(praw,sylSpans[0].t0,sylSpans[0].t1) : raw);
+  /* on a pair, fall back to the whole utterance rather than reporting
+     nothing when one syllable is too short to analyse on its own */
+  let a=null;
+  if(isPair&&sylSpans.length>=EX.pattern.length)
+    a=analyse(framesBetween(praw,sylSpans[0].t0,sylSpans[0].t1))||analyse(praw);
+  else a=analyse(raw);
   const wav=toWav(audioF32,recSR);
   if(learnerAudio) URL.revokeObjectURL(learnerAudio);
   learnerAudio=URL.createObjectURL(new Blob([wav],{type:"audio/wav"}));
@@ -976,7 +984,7 @@ function showResult(auto){
   : result.action==="neutral"
   ? "Let the second 妈 fall — light and soft."
   : result.action==="pair"
-  ? "Say both halves — 妈妈."
+  ? ("Say all of it — "+EX.ch+".")
   : result.action
     ? (COACH[tone+"-"+result.best] || "That sounded like a different tone.")
     : MSG[tone][result.band];
