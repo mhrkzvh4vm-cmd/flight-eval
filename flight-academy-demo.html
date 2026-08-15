@@ -169,7 +169,9 @@ const CFG={
                             learner's score until we know what her own 妈妈 does */
   valleyRatio:0.78,   /* a dip to this share of the neighbouring peak splits a syllable */
   minSylMs:110,
-  diveTarget:13.5,     /* her own commitment on 再见 — the drill standard */
+  pairAmpFloor:0.45, pairAmpSpan:1.5,  /* a tone inside a word swings less than a
+                                          citation syllable — UNVALIDATED, pending data */
+  pairBestWeight:0.62,
   vetoSoft:15,         /* another tone better by this -> cap 59      */
   vetoHard:30,         /* ... by this -> cap 24                      */
   t1RangeFree:1.5, t1RangeSpan:3.5,
@@ -182,7 +184,7 @@ let id=null,tone=1,ideal=null,stage="menu",anim=null,result=null;
 let EX=null,route=null;
 let ctx=null,stream=null,learnerAudio=null;
 const buffers={};
-let dev=false, intended="correct", capture=[], lastDebug="";
+let dev=false, intended="correct", capture=[], lastDebug="", sylSpansForExport=null;
 
 const $=x=>document.getElementById(x);
 const els={picker:$("picker"),cards:$("cards"),sky:$("sky"),field:$("field"),cue:$("cue"),count:$("count"),
@@ -673,6 +675,7 @@ function analyse(raw){
    reads the same movement measure with the sign reversed. This is what
    puts the four scores on a comparable scale. */
 const TMPL={ 2:t=>-1+2*t, 4:t=>1-2*t };   /* tone 3 no longer uses a template */
+let judgingPair=false;
 const clamp01=x=>Math.max(0,Math.min(1,x));
 function corr(a,b){ const n=a.length;
   const ma=a.reduce((x,y)=>x+y,0)/n, mb=b.reduce((x,y)=>x+y,0)/n;
@@ -699,7 +702,9 @@ function features(c){
 function fitAll(c){
   const f=features(c), n=c.length, fit={};
   fit[1]=100*clamp01(1-(f.range-CFG.t1RangeFree)/CFG.t1RangeSpan);
-  const amp=clamp01((f.range-CFG.ampFloor)/CFG.ampSpan);
+  const amp=judgingPair
+    ? clamp01((f.range-CFG.pairAmpFloor)/CFG.pairAmpSpan)
+    : clamp01((f.range-CFG.ampFloor)/CFG.ampSpan);
   for(const k of [2,4]){
     const tm=[]; for(let i=0;i<n;i++) tm.push(TMPL[k](i/(n-1)));
     fit[k]=100*clamp01((corr(c,tm)+CFG.corrOff)/CFG.corrSpan)*amp;
@@ -916,8 +921,8 @@ function finish(){
       const an=analyse(fr);
       const want=EX.pattern[i];
       if(!an){ perSyl.push({tone:want,score:0,fall:0}); continue; }
-      const keep=tone; tone=want;              /* frozen rule, that syllable's tone */
-      const jj=judge(an.c); tone=keep;
+      const keep=tone; tone=want; judgingPair=true;
+      const jj=judge(an.c); tone=keep; judgingPair=false;
       perSyl.push({tone:want,score:jj.score,fall:jj.f.early-jj.f.late,c:an.c});
     }
   }
@@ -942,7 +947,8 @@ function finish(){
   if(isPair){
     if(perSyl.length<EX.pattern.length){ sc=Math.min(sc,45); act="pair"; }
     else{
-      sc=Math.round(perSyl.reduce((x,p)=>x+p.score,0)/perSyl.length);
+      const ss=perSyl.map(p=>p.score);
+      sc=Math.round(CFG.pairBestWeight*Math.max(...ss)+(1-CFG.pairBestWeight)*Math.min(...ss));
       act=null;
       /* two fourth tones: beginners land the first and let the second go
          limp. That is the error this drill exists to catch. */
@@ -954,6 +960,7 @@ function finish(){
       }
     }
   }
+  sylSpansForExport=sylSpans.map(v=>({t0:Math.round(v.t0),t1:Math.round(v.t1)}));
   result={score:sc,band:bandOf(sc),action:act,best:j.best,syllables:syls,
           perSyl:perSyl.map(p=>({tone:p.tone,score:p.score,fall:+p.fall.toFixed(1)})),
           neutralDrop:neutral?neutral.dropSt:null};
@@ -1014,10 +1021,12 @@ function b64enc(buf){ const u=new Uint8Array(buf); let s="";
   for(let i=0;i<u.length;i+=8192) s+=String.fromCharCode.apply(null,u.subarray(i,i+8192));
   return btoa(s); }
 function record(wav,a,j){
+  try{
   if(capture.length>=40) capture.shift();
   capture.push({
     n:capture.length+1, utc:new Date().toISOString(),
-    target_tone:tone, character:ASSETS[id].ch, intended_quality:intended,
+    exercise:id, target_tone:tone, pattern:(EX&&EX.pattern)||null,
+    character:(EX&&EX.ch)||id, intended_quality:intended,
     sample_rate:recSR, duration_s:+(wav.byteLength-44)/2/recSR,
     settings:{gate_db:CFG.gateDb,silence_ms:CFG.silenceMs,head_trim_ms:CFG.headTrimMs,
               tail_trim_ms:CFG.tailTrimMs,f0_min:CFG.f0Min,f0_max:CFG.f0Max,clarity:CFG.clarity},
@@ -1032,10 +1041,14 @@ function record(wav,a,j){
            net_st:+j.f.net.toFixed(2),range_st:+j.f.range.toFixed(2)}:null,
     trim:{mode:"fixed",head_trim_ms:CFG.headTrimMs,tail_trim_ms:CFG.tailTrimMs,
           note:"adaptive trim tested offline on the 80-attempt corpus and rejected: it cost 20 points of accuracy"},
-    result:j?{score:j.score,band:BANDS[bandOf(j.score)].name}:{score:null,band:"NO SCORE"},
+    result:result?{score:result.score,band:BANDS[result.band].name,action:result.action||null,
+                   per_syllable:result.perSyl||null,syllables:result.syllables||1}
+                 :{score:null,band:"NO SCORE"},
+    syllable_spans:sylSpansForExport,
     wav_base64:b64enc(wav)
   });
   els.devTag.textContent="●"+capture.length;
+  }catch(err){ lastDebug+="\ncapture failed: "+err.message; }
 }
 function download(blob,name){ const a=document.createElement("a");
   a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click();
