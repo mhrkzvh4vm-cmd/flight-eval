@@ -6,60 +6,58 @@
 <title>Flight Academy</title>
 <style>
 :root{
-  --ink:#2B3A42; --ink-soft:#6C8390;
-  --native:#1F6F78; --learner:#C4633F; --rec:#C2483F;
-  --paper:#FBF7F1; --r:18px;
+  --ink:#2B3A42; --ink-soft:#6C8390; --paper:#FBF7F1;
+  --t1:#1F6F78; --t2:#3E7D4E; --t3:#C77B2E; --t4:#B4483F;
+  --rec:#C2483F; --r:18px;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-html,body{
-  margin:0;padding:0;height:100%;overflow:hidden;overscroll-behavior:none;
+html,body{margin:0;padding:0;height:100%;overflow:hidden;overscroll-behavior:none;
   background:var(--paper);color:var(--ink);
   font-family:"Avenir Next","Segoe UI",-apple-system,BlinkMacSystemFont,sans-serif;
-  -webkit-user-select:none;user-select:none;-webkit-text-size-adjust:100%;
-}
+  -webkit-user-select:none;user-select:none;-webkit-text-size-adjust:100%;}
 body{height:100dvh;display:flex;flex-direction:column;
   padding:calc(env(safe-area-inset-top) + 8px) calc(env(safe-area-inset-right) + 14px) calc(env(safe-area-inset-bottom) + 10px) calc(env(safe-area-inset-left) + 14px);
   gap:10px;}
 button{font:inherit;color:inherit;cursor:pointer;border:none;background:none;touch-action:manipulation;}
-button:focus-visible{outline:3px solid var(--native);outline-offset:3px;border-radius:12px;}
+button:focus-visible{outline:3px solid var(--t1);outline-offset:3px;border-radius:12px;}
 
-.top{flex:0 0 auto;display:flex;align-items:center;gap:10px;min-height:44px;}
-.back{font-size:15px;color:var(--ink-soft);padding:8px 4px;font-weight:600;min-width:64px;text-align:left;}
-.title{flex:1 1 auto;text-align:center;}
-.hanzi{font-size:30px;font-weight:600;line-height:1;letter-spacing:.04em;}
-.pinyin{font-size:14px;color:var(--ink-soft);margin-top:3px;letter-spacing:.06em;}
-.spacer{min-width:64px;}
+.top{flex:0 0 auto;display:flex;align-items:center;min-height:42px;}
+.back{font-size:15px;color:var(--ink-soft);font-weight:600;padding:8px 4px;min-width:70px;text-align:left;}
+.title{flex:1 1 auto;text-align:center;font-size:15px;color:var(--ink-soft);letter-spacing:.06em;}
+.spacer{min-width:70px;}
 
 .picker{flex:1 1 auto;display:flex;flex-direction:column;justify-content:center;gap:18px;}
-.lead{text-align:center;padding:0 6px;}
-.lead h1{font-size:27px;margin:0 0 8px;font-weight:600;letter-spacing:-.01em;}
+.lead{text-align:center;}
+.lead h1{font-size:26px;margin:0 0 8px;font-weight:600;}
 .lead p{margin:0;color:var(--ink-soft);font-size:16px;line-height:1.5;}
 .cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-.card{background:linear-gradient(160deg,#DCEAEE,var(--paper));
-  border:1px solid rgba(43,58,66,.09);border-radius:var(--r);padding:15px 14px 12px;text-align:left;
-  box-shadow:0 2px 10px rgba(43,58,66,.06);display:flex;flex-direction:column;gap:6px;transition:transform .1s ease;}
+.card{background:linear-gradient(160deg,#E3EDEF,var(--paper));border:1px solid rgba(43,58,66,.09);
+  border-radius:var(--r);padding:14px;box-shadow:0 2px 10px rgba(43,58,66,.06);
+  display:flex;flex-direction:column;gap:4px;transition:transform .1s ease;text-align:left;}
 .card:active{transform:scale(.97);}
-.card .ch{font-size:32px;font-weight:600;line-height:1;}
-.card .py{font-size:14px;color:var(--ink-soft);letter-spacing:.05em;}
-.card canvas{width:100%;height:32px;display:block;}
+.card .ch{font-size:34px;font-weight:600;line-height:1.05;}
+.card .py{font-size:14px;color:var(--ink-soft);}
+.card canvas{width:100%;height:30px;display:block;margin-top:4px;}
 
-.sky{flex:1 1 auto;position:relative;min-height:150px;border-radius:22px;overflow:hidden;
+.sky{flex:1 1 auto;position:relative;min-height:180px;border-radius:22px;overflow:hidden;
   box-shadow:0 3px 18px rgba(43,58,66,.10);}
 #field{display:block;width:100%;height:100%;}
-.cue{position:absolute;top:14px;left:0;right:0;text-align:center;font-size:15px;font-weight:600;
+.cue{position:absolute;top:12px;left:0;right:0;text-align:center;font-size:15px;font-weight:600;
   color:var(--ink);text-shadow:0 1px 8px rgba(255,255,255,.9);pointer-events:none;opacity:0;
-  transition:opacity .25s ease;letter-spacing:.02em;}
+  transition:opacity .25s ease;}
 .cue.show{opacity:1;}
 .count{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  font-size:84px;font-weight:600;color:rgba(43,58,66,.5);text-shadow:0 2px 22px rgba(255,255,255,.95);
-  pointer-events:none;opacity:0;}
+  font-size:84px;font-weight:600;color:rgba(43,58,66,.45);
+  text-shadow:0 2px 22px rgba(255,255,255,.95);pointer-events:none;opacity:0;}
 .count.show{opacity:1;}
-.legend{position:absolute;left:12px;bottom:9px;display:flex;gap:14px;font-size:12px;color:var(--ink-soft);}
-.legend span{display:flex;align-items:center;gap:6px;}
-.legend i{width:16px;height:3px;border-radius:2px;display:block;}
+.verdict{position:absolute;left:0;right:0;top:10px;text-align:center;pointer-events:none;
+  opacity:0;transition:opacity .3s ease;}
+.verdict.show{opacity:1;}
+.verdict .band{font-size:21px;font-weight:700;letter-spacing:.01em;}
+.verdict .msg{font-size:15px;color:var(--ink);margin-top:2px;text-shadow:0 1px 8px rgba(255,255,255,.9);}
 
-.note{flex:0 0 auto;text-align:center;font-size:14px;color:var(--ink-soft);min-height:19px;padding:0 8px;}
-.main-row{flex:0 0 auto;display:flex;gap:10px;}
+.hint{flex:0 0 auto;text-align:center;font-size:14px;color:var(--ink-soft);min-height:19px;}
+.row{flex:0 0 auto;display:flex;gap:10px;}
 .big{flex:1 1 0;min-height:60px;border-radius:var(--r);background:var(--ink);color:var(--paper);
   font-size:17px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:9px;
   transition:transform .08s ease,opacity .15s ease;}
@@ -68,20 +66,16 @@ button:focus-visible{outline:3px solid var(--native);outline-offset:3px;border-r
 .big.record{background:var(--rec);color:#fff;}
 .big:disabled{opacity:.35;}
 .dot{width:12px;height:12px;border-radius:50%;background:currentColor;}
-
-.replay{flex:0 0 auto;display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-.chip{min-height:48px;border-radius:14px;border:1.5px solid rgba(43,58,66,.16);font-size:15px;
-  font-weight:600;display:flex;align-items:center;justify-content:center;gap:7px;background:rgba(255,255,255,.55);}
+.chips{flex:0 0 auto;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+.chip{min-height:46px;border-radius:14px;border:1.5px solid rgba(43,58,66,.16);font-size:14px;
+  font-weight:600;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.55);}
 .chip:active:not(:disabled){background:rgba(43,58,66,.06);}
 .chip:disabled{opacity:.3;}
-.chip .sw{width:9px;height:9px;border-radius:50%;}
-.chip.wide{grid-column:1 / -1;}
 .hidden{display:none !important;}
-
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 92px);
-  background:var(--ink);color:var(--paper);padding:12px 20px;border-radius:999px;font-size:15px;font-weight:600;
-  box-shadow:0 6px 24px rgba(43,58,66,.35);opacity:0;pointer-events:none;transition:opacity .2s ease;z-index:80;
-  max-width:88vw;text-align:center;}
+  background:var(--ink);color:var(--paper);padding:12px 20px;border-radius:999px;font-size:15px;
+  font-weight:600;box-shadow:0 6px 24px rgba(43,58,66,.35);opacity:0;pointer-events:none;
+  transition:opacity .2s ease;z-index:80;max-width:88vw;text-align:center;}
 .toast.show{opacity:1;}
 @media (prefers-reduced-motion:reduce){*{transition:none !important;}}
 </style>
@@ -90,17 +84,14 @@ button:focus-visible{outline:3px solid var(--native);outline-offset:3px;border-r
 
 <div class="top">
   <button class="back hidden" id="back">‹ Tones</button>
-  <div class="title">
-    <div class="hanzi" id="hanzi">Flight Academy</div>
-    <div class="pinyin" id="pinyin">小鸟</div>
-  </div>
+  <div class="title" id="title">Flight Academy · 小鸟</div>
   <div class="spacer"></div>
 </div>
 
 <div class="picker" id="picker">
   <div class="lead">
-    <h1>Tones are flight paths</h1>
-    <p>Watch the bird fly the sound.<br>Then fly it yourself.</p>
+    <h1>Every character has a flight path</h1>
+    <p>Listen to the tone. Fly your bird.</p>
   </div>
   <div class="cards" id="cards"></div>
 </div>
@@ -109,25 +100,18 @@ button:focus-visible{outline:3px solid var(--native);outline-offset:3px;border-r
   <canvas id="field"></canvas>
   <div class="cue" id="cue"></div>
   <div class="count" id="count"></div>
-  <div class="legend hidden" id="legend">
-    <span><i style="background:var(--native)"></i>The shape</span>
-    <span><i style="background:var(--learner)"></i>Your flight</span>
-  </div>
+  <div class="verdict" id="verdict"><div class="band" id="vband"></div><div class="msg" id="vmsg"></div></div>
 </div>
 
-<div class="note hidden" id="note"></div>
-
-<div class="main-row hidden" id="mainRow">
+<div class="hint hidden" id="hint"></div>
+<div class="row hidden" id="mainRow">
   <button class="big ghost" id="listenBtn">Listen</button>
   <button class="big record" id="recBtn"><span class="dot"></span>Your turn</button>
 </div>
-
-<div class="replay hidden" id="replay">
-  <button class="chip" id="rNA"><span class="sw" style="background:var(--native)"></span>Teacher's voice</button>
-  <button class="chip" id="rMA"><span class="sw" style="background:var(--learner)"></span>My voice</button>
-  <button class="chip" id="rNP"><span class="sw" style="background:var(--native)"></span>Teacher's flight</button>
-  <button class="chip" id="rMP"><span class="sw" style="background:var(--learner)"></span>My flight</button>
-  <button class="chip wide" id="rB">Fly them together</button>
+<div class="chips hidden" id="chips">
+  <button class="chip" id="cTeacher">Teacher</button>
+  <button class="chip" id="cMine">My voice</button>
+  <button class="chip" id="cFlight">My flight</button>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -137,290 +121,423 @@ const ASSETS={"FA_001":{"ch":"妈","py":"mā","name":"Tone 1","hint":"High and l
 </script>
 <script>
 "use strict";
-/* ===================================================================
-   FLIGHT ACADEMY — first end-to-end demonstration
+/* ==================================================================
+   FLIGHT ACADEMY — demonstration v3
 
-   Teacher audio = the real native recordings, byte-exact slices of the
-   masters over the frozen Stage A event spans. Nothing was resampled,
-   filtered or gain-adjusted.
+   PRODUCT RULE (Aug 14): the learner never sees a drawing of the
+   microphone's raw pitch. The analyser only decides WHICH QUALITY
+   BAND the attempt falls in. The bird then flies a predesigned
+   educational animation. The shape never changes with quality —
+   only the quality of the flight does.
 
-   The reference flight path is a DEMONSTRATION VISUALISATION derived
-   offline from the confirmed rime of each recording. It is display
-   only. It is not certified, it is never written anywhere, and it
-   must never become an authoritative scoring target.
+   The raw contour still exists in memory for scoring. It is never
+   drawn, never exported, and never becomes a reference target.
+   ================================================================== */
 
-   D1 is respected on screen: the bird perches through the /m/ onset
-   and takes off at the human-confirmed rime boundary.
-   =================================================================== */
+const ORDER=["FA_001","FA_002","FA_003","FA_004"];
+const TONE_N={FA_001:1,FA_002:2,FA_003:3,FA_004:4};
+const HUE={1:"#1F6F78",2:"#3E7D4E",3:"#C77B2E",4:"#B4483F"};
+const HINT={1:"High and level.",2:"Rising.",3:"Dips down, then rises.",4:"Falls down sharply."};
+const BANDS=[
+  {min:80,name:"Excellent",color:"#2E7D4F"},
+  {min:60,name:"Good",color:"#2C6E8F"},
+  {min:25,name:"Almost There",color:"#C77B2E"},
+  {min:0 ,name:"Try Again",color:"#B4483F"}
+];
+const MSG={
+ 1:["Smooth and steady!","Nice job!","Keep it level!","Let's try again."],
+ 2:["Excellent climb!","Great effort!","Keep going up!","Climb higher!"],
+ 3:["Beautiful dip and rise!","Nice recovery!","Try a deeper dip.","Let's try again."],
+ 4:["Strong and clean!","Well done!","Drop down more.","Dive down!"]
+};
 
-const BASE_HZ = 213.2;                 // speaker-level reference, D4
-const ORDER = ["FA_001","FA_002","FA_003","FA_004"];
-
-let tone=null, ref=null, learnerPath=[], learnerAudio=null;
-let stage="menu", anim=null, ctx=null, stream=null, recorder=null, chunks=[];
+let id=null,tone=1,ideal=null,stage="menu",anim=null;
+let ctx=null,stream=null,recorder=null,chunks=[],learnerAudio=null;
+let result=null;                    // {score, bandIdx}
 const buffers={};
+let userBaseline=null;              // per-user calibration, built across attempts
 
-const $=id=>document.getElementById(id);
+const $=x=>document.getElementById(x);
 const els={picker:$("picker"),cards:$("cards"),sky:$("sky"),field:$("field"),cue:$("cue"),
-  count:$("count"),note:$("note"),mainRow:$("mainRow"),listenBtn:$("listenBtn"),recBtn:$("recBtn"),
-  replay:$("replay"),back:$("back"),hanzi:$("hanzi"),pinyin:$("pinyin"),toast:$("toast"),legend:$("legend")};
+  count:$("count"),hint:$("hint"),mainRow:$("mainRow"),listenBtn:$("listenBtn"),recBtn:$("recBtn"),
+  chips:$("chips"),back:$("back"),title:$("title"),toast:$("toast"),
+  verdict:$("verdict"),vband:$("vband"),vmsg:$("vmsg")};
 
-/* ---------- audio ---------- */
-function audio(){
-  if(!ctx) ctx=new (window.AudioContext||window.webkitAudioContext)();
-  if(ctx.state==="suspended") ctx.resume();
-  return ctx;
-}
-function b64ToBuf(b64){
-  const bin=atob(b64), u=new Uint8Array(bin.length);
-  for(let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i);
-  return u.buffer;
-}
-async function decode(id){
-  if(buffers[id]) return buffers[id];
+/* ---------------- audio ---------------- */
+function audio(){ if(!ctx) ctx=new (window.AudioContext||window.webkitAudioContext)();
+  if(ctx.state==="suspended") ctx.resume(); return ctx; }
+function b64(s){const b=atob(s),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u.buffer;}
+async function decode(k){ if(buffers[k]) return buffers[k];
   const c=audio();
-  buffers[id]=await new Promise((res,rej)=>{
-    const p=c.decodeAudioData(b64ToBuf(ASSETS[id].wav), res, rej);
-    if(p&&p.then) p.then(res,rej);
-  });
-  return buffers[id];
-}
-let srcNode=null;
-function playNative(id){
-  const c=audio();
-  stopNative();
+  buffers[k]=await new Promise((res,rej)=>{const p=c.decodeAudioData(b64(ASSETS[k].wav),res,rej); if(p&&p.then)p.then(res,rej);});
+  return buffers[k]; }
+let src=null;
+function playNative(){ const c=audio(); stopNative();
   const b=buffers[id]; if(!b) return c.currentTime;
-  srcNode=c.createBufferSource(); srcNode.buffer=b; srcNode.connect(c.destination);
-  const t0=c.currentTime+0.06; srcNode.start(t0); return t0;
-}
-function stopNative(){ if(srcNode){ try{srcNode.stop();}catch(e){} srcNode.disconnect(); srcNode=null; } }
+  src=c.createBufferSource(); src.buffer=b; src.connect(c.destination);
+  const t=c.currentTime+0.06; src.start(t); return t; }
+function stopNative(){ if(src){try{src.stop();}catch(e){} src.disconnect(); src=null;} }
 
-/* ---------- path helpers ---------- */
-function pathAt(p,t){
-  if(!p.length) return null;
-  t=Math.max(0,Math.min(1,t));
-  let lo=0,hi=p.length-1;
-  while(lo<hi-1){const m=(lo+hi)>>1; if(p[m][0]<=t) lo=m; else hi=m;}
-  const a=p[lo],b=p[hi];
-  if(a[1]===null) return b[1];
-  if(b[1]===null) return a[1];
-  const u=(t-a[0])/Math.max(1e-6,b[0]-a[0]);
-  return a[1]+(b[1]-a[1])*u;
-}
-
-/* ---------- field ---------- */
+/* ---------------- geometry ---------------- */
 const g=els.field.getContext("2d");
 let W=0,H=0,DPR=1,lw=0,lh=0;
-const PAD={l:30,r:30,t:36,b:38};
-function sizeField(){
-  DPR=Math.min(window.devicePixelRatio||1,2);
+function sizeField(){ DPR=Math.min(devicePixelRatio||1,2);
   const w=els.sky.clientWidth,h=els.sky.clientHeight;
   els.field.width=Math.round(w*DPR); els.field.height=Math.round(h*DPR);
-  els.field.style.width=w+"px"; els.field.style.height=h+"px";
-  W=w;H=h;lw=w;lh=h;
-}
-function range(){
-  let lo=99,hi=-99;
-  const scan=p=>p.forEach(q=>{if(q[1]!==null){lo=Math.min(lo,q[1]);hi=Math.max(hi,q[1]);}});
-  if(ref) scan(ref.pts);
-  if(learnerPath.length) scan(learnerPath);
-  if(lo>hi){lo=-8;hi=8;}
-  const mid=(lo+hi)/2, half=Math.max(5,(hi-lo)/2+2.8);
-  return {lo:mid-half,hi:mid+half};
-}
-const X=t=>PAD.l+t*(W-PAD.l-PAD.r);
-const Y=(st,r)=>PAD.t+(1-(st-r.lo)/(r.hi-r.lo))*(H-PAD.t-PAD.b);
+  els.field.style.width=w+"px"; els.field.style.height=h+"px"; W=w;H=h;lw=w;lh=h; }
 
-function drawSky(){
+function lane(){
+  const cs=Math.min(W*0.40,H*0.30);
+  return { L:W*0.13, R:W*0.87, T:H*0.17, B:H*0.50, charSize:cs, charY:H*0.74 };
+}
+function span(){
+  const v=ideal.filter(p=>p[1]!==null).map(p=>p[1]);
+  const lo=Math.min(...v),hi=Math.max(...v),pad=Math.max(1.2,(hi-lo)*0.22);
+  return {lo:lo-pad,hi:hi+pad};
+}
+const PX=(t,l)=>l.L+t*(l.R-l.L);
+const PY=(st,l,s)=>l.T+(1-(st-s.lo)/(s.hi-s.lo))*(l.B-l.T);
+function at(p,t){ t=Math.max(0,Math.min(1,t));
+  for(let i=0;i<p.length-1;i++){ if(t<=p[i+1][0]){
+    const u=(t-p[i][0])/Math.max(1e-6,p[i+1][0]-p[i][0]);
+    return p[i][1]+(p[i+1][1]-p[i][1])*u; } }
+  return p[p.length-1][1]; }
+
+/* ---------------- predesigned flight paths ----------------
+   The taught shape, degraded in QUALITY only. Never the learner's
+   measured contour. */
+function designed(bandIdx,seed){
+  const s=span(), amp=(s.hi-s.lo)*[0,0.035,0.095,0.185][bandIdx];
+  const sag=[0,0,0.04,0.11][bandIdx]*(s.hi-s.lo);
+  const N=80,out=[];
+  for(let i=0;i<=N;i++){
+    const t=i/N;
+    let v=at(ideal,t);
+    if(amp){
+      v+=Math.sin(t*Math.PI*2*(3.4+seed*0.7)+seed)*amp
+        +Math.sin(t*Math.PI*2*(6.9+seed*0.4)+seed*2.1)*amp*0.45;
+      v-=sag*t;
+    }
+    out.push([t,v]);
+  }
+  return out;
+}
+function feathers(bandIdx,path,seed){
+  const n=[0,0,2,5][bandIdx],out=[];
+  for(let i=0;i<n;i++){
+    const t=0.22+0.62*((i+0.5)/n)+((seed*7+i*13)%10)/120;
+    out.push({t:Math.min(0.95,t),drift:((i%2)?1:-1)*(0.4+(i%3)*0.25),spin:(i%2?1:-1)});
+  }
+  return out;
+}
+
+/* ---------------- drawing ---------------- */
+function sky(){
   g.setTransform(DPR,0,0,DPR,0,0); g.clearRect(0,0,W,H);
   const gr=g.createLinearGradient(0,0,0,H);
-  gr.addColorStop(0,"#A9CCE0"); gr.addColorStop(0.52,"#DCEAEE"); gr.addColorStop(1,"#F7E6D2");
+  gr.addColorStop(0,"#AFD0E2"); gr.addColorStop(.5,"#DFECEF"); gr.addColorStop(1,"#F8E8D5");
   g.fillStyle=gr; g.fillRect(0,0,W,H);
-  g.save();
-  for(let i=1;i<5;i++){
-    const y=PAD.t+(H-PAD.t-PAD.b)*(i/5);
-    g.globalAlpha=.10; g.strokeStyle="#2B3A42"; g.lineWidth=1; g.setLineDash([2,7]);
-    g.beginPath(); g.moveTo(PAD.l-12,y); g.lineTo(W-PAD.r+12,y); g.stroke();
-  }
-  g.restore();
-  hill(H*0.87,26,"rgba(191,212,210,.55)",0.9);
-  hill(H*0.95,18,"rgba(157,188,184,.55)",1.7);
+  ridge(H*0.83,24,"rgba(186,208,206,.5)",0.9);
+  ridge(H*0.93,17,"rgba(152,184,180,.5)",1.8);
 }
-function hill(base,amp,fill,ph){
+function ridge(base,amp,fill,ph){
   g.beginPath(); g.moveTo(0,H);
-  for(let x=0;x<=W;x+=8){
-    const y=base-Math.sin(x/W*Math.PI*1.6+ph)*amp-Math.sin(x/W*Math.PI*4.1+ph*2)*amp*.28;
-    g.lineTo(x,y);
-  }
+  for(let x=0;x<=W;x+=8) g.lineTo(x,base-Math.sin(x/W*Math.PI*1.6+ph)*amp-Math.sin(x/W*Math.PI*4.1+ph*2)*amp*.28);
   g.lineTo(W,H); g.closePath(); g.fillStyle=fill; g.fill();
 }
-function route(p,r,color,alpha,dash){
-  g.save(); g.globalAlpha=alpha; g.strokeStyle=color; g.lineWidth=3;
-  g.lineCap="round"; g.lineJoin="round"; if(dash) g.setLineDash([7,9]);
-  g.beginPath(); let pen=false;
-  p.forEach(q=>{ if(q[1]===null){pen=false;return;}
-    const x=X(q[0]),y=Y(q[1],r); pen?g.lineTo(x,y):(g.moveTo(x,y),pen=true); });
-  g.stroke(); g.restore();
-}
-function trail(p,upto,r,color){
-  g.save(); g.strokeStyle=color; g.lineWidth=5; g.lineCap="round"; g.lineJoin="round";
-  g.shadowColor=color; g.shadowBlur=11; g.beginPath(); let pen=false;
-  for(const q of p){ if(q[0]>upto) break; if(q[1]===null){pen=false;continue;}
-    const x=X(q[0]),y=Y(q[1],r); pen?g.lineTo(x,y):(g.moveTo(x,y),pen=true); }
-  g.stroke(); g.restore();
-}
-function bird(x,y,ang,color,flap,sc,idle){
-  g.save(); g.translate(x,y); g.rotate(ang); g.scale(sc,sc);
-  const w=idle?Math.sin(flap*0.35)*0.14:Math.sin(flap)*0.9;
-  g.fillStyle=color;
-  g.save(); g.rotate(-0.35+w*0.55); g.globalAlpha=.55;
-  g.beginPath(); g.ellipse(-2,-3,13,5.5,-0.5,0,Math.PI*2); g.fill(); g.restore();
-  g.globalAlpha=1;
-  g.beginPath(); g.ellipse(0,0,13,9,0,0,Math.PI*2); g.fill();
-  g.beginPath(); g.moveTo(-10,-1); g.lineTo(-22,-6); g.lineTo(-21,3); g.closePath(); g.fill();
-  g.beginPath(); g.arc(11,-5,7,0,Math.PI*2); g.fill();
-  g.fillStyle="#E8A44C"; g.beginPath(); g.moveTo(17,-5); g.lineTo(25,-3.2); g.lineTo(17,-1.5); g.closePath(); g.fill();
-  g.fillStyle="#FBF7F1"; g.beginPath(); g.arc(13,-7,2.4,0,Math.PI*2); g.fill();
-  g.fillStyle="#2B3A42"; g.beginPath(); g.arc(13.7,-7,1.2,0,Math.PI*2); g.fill();
-  g.fillStyle=color; g.save(); g.rotate(-0.2-w*0.75);
-  g.beginPath(); g.ellipse(-1,-4,15,6.5,-0.45,0,Math.PI*2); g.fill(); g.restore();
+function character(l){
+  g.save();
+  g.font='600 '+l.charSize+'px "PingFang SC","Hiragino Sans GB","Songti SC",serif';
+  g.textAlign="center"; g.textBaseline="middle";
+  g.fillStyle="rgba(43,58,66,.90)";
+  g.fillText(ASSETS[id].ch,W/2,l.charY);
   g.restore();
 }
-function ang(p,t,r){
-  const d=0.025, a=pathAt(p,Math.max(0,t-d)), b=pathAt(p,Math.min(1,t+d));
-  if(a===null||b===null) return 0;
-  return Math.max(-0.95,Math.min(0.95,Math.atan2(Y(b,r)-Y(a,r),X(Math.min(1,t+d))-X(Math.max(0,t-d)))));
+function guide(l,s){
+  g.save(); g.strokeStyle=HUE[tone]; g.globalAlpha=.30; g.lineWidth=2.5;
+  g.setLineDash([6,8]); g.lineCap="round"; g.lineJoin="round";
+  g.beginPath();
+  for(let i=0;i<=60;i++){ const t=i/60,x=PX(t,l),y=PY(at(ideal,t),l,s); i?g.lineTo(x,y):g.moveTo(x,y); }
+  g.stroke(); g.restore();
 }
-
-/* ---------- loop ---------- */
+function trail(path,upto,l,s,color,glow){
+  g.save(); g.strokeStyle=color; g.lineWidth=4.5; g.lineCap="round"; g.lineJoin="round";
+  if(glow){ g.shadowColor=color; g.shadowBlur=12; }
+  g.beginPath(); let pen=false;
+  for(const p of path){ if(p[0]>upto) break;
+    const x=PX(p[0],l),y=PY(p[1],l,s); pen?g.lineTo(x,y):(g.moveTo(x,y),pen=true); }
+  g.stroke(); g.restore();
+}
 let flap=0;
+function bird(x,y,ang,color,sc,idle){
+  g.save(); g.translate(x,y); g.rotate(ang); g.scale(sc,sc);
+  const w=idle?Math.sin(flap*.35)*.14:Math.sin(flap)*.9;
+  g.fillStyle=color;
+  g.save(); g.rotate(-.35+w*.55); g.globalAlpha=.55;
+  g.beginPath(); g.ellipse(-2,-3,12,5,-.5,0,7); g.fill(); g.restore();
+  g.globalAlpha=1;
+  g.beginPath(); g.ellipse(0,0,12,8.5,0,0,7); g.fill();
+  g.beginPath(); g.moveTo(-9,-1); g.lineTo(-20,-6); g.lineTo(-19,3); g.closePath(); g.fill();
+  g.beginPath(); g.arc(10,-5,6.5,0,7); g.fill();
+  g.fillStyle="#E8A44C"; g.beginPath(); g.moveTo(16,-5); g.lineTo(23,-3.2); g.lineTo(16,-1.6); g.closePath(); g.fill();
+  g.fillStyle="#FBF7F1"; g.beginPath(); g.arc(12,-6.6,2.2,0,7); g.fill();
+  g.fillStyle="#2B3A42"; g.beginPath(); g.arc(12.6,-6.6,1.1,0,7); g.fill();
+  g.fillStyle=color; g.save(); g.rotate(-.2-w*.75);
+  g.beginPath(); g.ellipse(-1,-4,14,6,-.45,0,7); g.fill(); g.restore();
+  g.restore();
+}
+function sparkle(x,y,t){
+  g.save(); g.globalAlpha=.85;
+  for(let i=0;i<3;i++){
+    const a=t*4+i*2.1, r=13+i*6, sx=x-Math.cos(a)*r*0.6-16, sy=y+Math.sin(a)*r*0.5;
+    g.fillStyle="rgba(255,225,150,"+(0.7-i*0.2)+")";
+    g.beginPath(); g.arc(sx,sy,2.4-i*0.5,0,7); g.fill();
+  }
+  g.restore();
+}
+function feather(x,y,rot,alpha,color){
+  g.save(); g.translate(x,y); g.rotate(rot); g.globalAlpha=alpha;
+  g.fillStyle=color; g.beginPath(); g.ellipse(0,0,7,2.6,0,0,7); g.fill();
+  g.restore();
+}
+function slope(p,t,l,s){ const d=.03,a=at(p,Math.max(0,t-d)),b=at(p,Math.min(1,t+d));
+  return Math.max(-1,Math.min(1,Math.atan2(PY(b,l,s)-PY(a,l,s),PX(Math.min(1,t+d),l)-PX(Math.max(0,t-d),l)))); }
+
+/* ---------------- loop ---------------- */
 function frame(){
   requestAnimationFrame(frame);
   if(stage==="menu") return;
   if(els.sky.clientWidth!==lw||els.sky.clientHeight!==lh) sizeField();
-  flap+=0.34;
-  const r=range();
-  drawSky();
+  flap+=.34;
+  const l=lane(), s=span();
+  sky(); character(l); guide(l,s);
 
-  const idleShow = !anim || anim.kind==="static";
-  if(ref) route(ref.pts,r,"#1F6F78",idleShow?0.30:0.24,true);
-  if(idleShow){
-    if(learnerPath.length>1) route(learnerPath,r,"#C4633F",0.92,false);
-    if(ref && stage==="done") route(ref.pts,r,"#1F6F78",0.85,false);
-    if(ref && stage==="ready"){
-      const st=pathAt(ref.pts,0);
-      bird(X(0),Y(st,r),0,"#1F6F78",flap,1.08,true);
+  if(!anim){
+    const y=PY(at(ideal,0),l,s);
+    bird(PX(0,l),y,0,HUE[tone],1,true);
+    return;
+  }
+  const el=performance.now()-anim.t0;
+
+  if(anim.kind==="guide"){
+    if(el<anim.lead){ bird(PX(0,l),PY(at(ideal,0),l,s),0,HUE[tone],1,true); }
+    else{
+      const t=Math.min(1,(el-anim.lead)/anim.dur);
+      trail(anim.path,t,l,s,HUE[tone],false);
+      bird(PX(t,l),PY(at(anim.path,t),l,s),slope(anim.path,t,l,s),HUE[tone],1,t>=1);
     }
+    if(el>anim.total){ if(anim.onEnd)anim.onEnd(); anim=null; }
+    return;
   }
 
-  if(stage==="recording"){
-    trail(learnerPath,1,r,"#C4633F");
-    const v=learnerPath.filter(p=>p[1]!==null);
-    const last=v[v.length-1];
-    const t=Math.min(1,(now()-anim.t0)/anim.durMs);
-    if(last) bird(X(last[0]),Y(last[1],r),ang(learnerPath,last[0],r),"#C4633F",flap,1,false);
-    else bird(X(t),H*0.58,0,"#C4633F",flap,1,true);
-  }
-
-  if(anim&&anim.kind==="fly"){
-    const el=now()-anim.t0;
-    if(anim.native){
-      const lead=anim.leadMs||0, fl=anim.flightMs;
-      if(el<lead){                       /* perched through the /m/ onset */
-        const st=pathAt(ref.pts,0);
-        bird(X(0),Y(st,r),0,"#1F6F78",flap,1.08,true);
-      } else {
-        const t=Math.min(1,(el-lead)/fl);
-        trail(ref.pts,t,r,"#1F6F78");
-        const st=pathAt(ref.pts,t);
-        if(st!==null) bird(X(t),Y(st,r),ang(ref.pts,t,r),"#1F6F78",flap,1.08,t>=1);
+  if(anim.kind==="graded"){
+    const t=Math.min(1,el/anim.dur);
+    trail(anim.path,t,l,s,anim.color,anim.band===0);
+    const x=PX(t,l),y=PY(at(anim.path,t),l,s);
+    if(anim.band===0&&t<1) sparkle(x,y,el/1000);
+    for(const f of anim.feathers){
+      if(t>f.t){
+        const age=(t-f.t)*anim.dur/1000;
+        const fx=PX(f.t,l)+f.drift*30*age, fy=PY(at(anim.path,f.t),l,s)+42*age*age+18*age;
+        const a=Math.max(0,1-age*0.85);
+        if(a>0.02) feather(fx,fy,f.spin*age*3,a,anim.color);
       }
     }
-    if(anim.learner&&learnerPath.length){
-      const t=Math.min(1,el/anim.flightMs);
-      trail(learnerPath,t,r,"#C4633F");
-      const st=pathAt(learnerPath,t);
-      if(st!==null) bird(X(t),Y(st,r),ang(learnerPath,t,r),"#C4633F",flap,1,t>=1);
-    }
-    if(el>anim.totalMs){ if(anim.onEnd) anim.onEnd(); anim={kind:"static"}; }
+    bird(x,y,slope(anim.path,t,l,s),anim.color,1,t>=1);
+    if(el>anim.dur+1400) anim=null;
+    return;
   }
 }
-const now=()=>performance.now();
 requestAnimationFrame(frame);
 
-/* ---------- cards ---------- */
-function buildCards(){
+/* ---------------- menu ---------------- */
+function cards(){
   els.cards.innerHTML="";
-  ORDER.forEach(id=>{
-    const a=ASSETS[id];
+  ORDER.forEach(k=>{
+    const a=ASSETS[k],n=TONE_N[k];
     const b=document.createElement("button"); b.className="card";
-    b.innerHTML='<div class="ch">'+a.ch+'</div><div class="py">'+a.py+'</div>';
+    b.innerHTML='<div class="ch">'+a.ch+'</div><div class="py">'+a.py+' · Tone '+n+'</div>';
     const cv=document.createElement("canvas"); b.appendChild(cv);
-    b.onclick=()=>openTone(id);
+    b.onclick=()=>open(k);
     els.cards.appendChild(b);
-    requestAnimationFrame(()=>spark(cv,a.ideal));
+    requestAnimationFrame(()=>mini(cv,a.ideal,HUE[n]));
   });
 }
-function spark(cv,pts){
-  const dpr=Math.min(devicePixelRatio||1,2), w=cv.clientWidth, h=32;
-  cv.width=w*dpr; cv.height=h*dpr;
-  const c=cv.getContext("2d"); c.scale(dpr,dpr);
-  const v=pts.filter(p=>p[1]!==null);
-  const lo=Math.min(...v.map(p=>p[1]))-1.5, hi=Math.max(...v.map(p=>p[1]))+1.5;
-  c.strokeStyle="#1F6F78"; c.lineWidth=2.4; c.lineCap="round"; c.lineJoin="round";
-  c.beginPath(); let pen=false;
-  v.forEach(p=>{ const x=2+p[0]*(w-4), y=4+(1-(p[1]-lo)/(hi-lo))*(h-8);
-    pen?c.lineTo(x,y):(c.moveTo(x,y),pen=true); });
+function mini(cv,pts,color){
+  const d=Math.min(devicePixelRatio||1,2),w=cv.clientWidth,h=30;
+  cv.width=w*d; cv.height=h*d; const c=cv.getContext("2d"); c.scale(d,d);
+  const v=pts.map(p=>p[1]),lo=Math.min(...v)-1,hi=Math.max(...v)+1;
+  c.strokeStyle=color; c.lineWidth=2.6; c.lineCap="round"; c.lineJoin="round";
+  c.beginPath();
+  for(let i=0;i<=40;i++){ const t=i/40,x=2+t*(w-4),y=4+(1-(at(pts,t)-lo)/(hi-lo))*(h-8);
+    i?c.lineTo(x,y):c.moveTo(x,y); }
   c.stroke();
 }
 
-/* ---------- flow ---------- */
-async function openTone(id){
-  tone=id; const a=ASSETS[id];
-  /* The bird flies the TAUGHT SHAPE, not her waveform. a.measured holds
-     the real contour; it is deliberately never drawn as the guide. */
-  ref={pts:a.ideal,measured:a.measured,flightMs:a.flightMs,leadMs:a.takeoffMs,eventMs:a.eventMs};
-  learnerPath=[]; if(learnerAudio){URL.revokeObjectURL(learnerAudio);learnerAudio=null;}
-  anim=null; stage="ready";
-  els.hanzi.textContent=a.ch; els.pinyin.textContent=a.py+" · "+a.name;
+async function open(k){
+  id=k; tone=TONE_N[k]; ideal=ASSETS[k].ideal;
+  result=null; anim=null; stage="ready";
+  if(learnerAudio){URL.revokeObjectURL(learnerAudio);learnerAudio=null;}
+  els.title.textContent=ASSETS[k].py+" · Tone "+tone;
   els.picker.classList.add("hidden");
-  [els.sky,els.note,els.mainRow,els.replay,els.back,els.legend].forEach(e=>e.classList.remove("hidden"));
-  els.note.textContent=a.hint;
+  [els.sky,els.hint,els.mainRow,els.chips,els.back].forEach(e=>e.classList.remove("hidden"));
+  els.verdict.classList.remove("show");
+  els.hint.textContent=HINT[tone];
   els.recBtn.innerHTML='<span class="dot"></span>Your turn';
   setChips(); sizeField();
-  try{ await decode(id); }catch(e){ toast("Couldn't load the teacher's voice."); }
+  try{ await decode(k); }catch(e){ toast("Couldn't load the teacher's voice."); }
 }
-function toMenu(){
-  stopAll(); stage="menu"; tone=null; ref=null; learnerPath=[]; anim=null;
-  els.hanzi.textContent="Flight Academy"; els.pinyin.textContent="小鸟";
+function menu(){ stopAll(); stage="menu"; anim=null; id=null;
+  els.title.textContent="Flight Academy · 小鸟";
   els.picker.classList.remove("hidden");
-  [els.sky,els.note,els.mainRow,els.replay,els.back,els.legend].forEach(e=>e.classList.add("hidden"));
-}
-els.back.onclick=toMenu;
+  [els.sky,els.hint,els.mainRow,els.chips,els.back].forEach(e=>e.classList.add("hidden")); }
+els.back.onclick=menu;
 
 function cue(t,ms){ els.cue.textContent=t; els.cue.classList.add("show");
   clearTimeout(cue._t); if(ms) cue._t=setTimeout(()=>els.cue.classList.remove("show"),ms); }
 
-function flyReference(withAudio,onEnd){
-  stopAll();
-  const c=audio();
-  const t0=withAudio?playNative(tone):c.currentTime+0.05;
-  const lead=Math.max(0,(t0-c.currentTime)*1000);
-  const total=withAudio?ref.eventMs+lead:ref.leadMs+ref.flightMs+120;
-  cue(withAudio?"Follow the shape":"Teacher's flight",total);
-  anim={kind:"fly",native:true,learner:false,t0:now()+lead,
-        leadMs:ref.leadMs,flightMs:ref.flightMs,totalMs:total-lead,onEnd:onEnd};
+/* ---------------- listen ---------------- */
+function listen(withAudio,onEnd){
+  stopAll(); els.verdict.classList.remove("show");
+  const c=audio(), t0=withAudio?playNative():c.currentTime+0.05;
+  const lead=Math.max(0,(t0-c.currentTime)*1000)+(withAudio?ASSETS[id].takeoffMs:0);
+  const dur=ASSETS[id].flightMs, total=lead+dur+400;
+  cue(withAudio?"Listen":"The shape",total);
+  anim={kind:"guide",path:ideal,t0:performance.now(),lead:lead,dur:dur,total:total,onEnd:onEnd};
 }
-els.listenBtn.onclick=()=>{ if(stage==="recording") return; flyReference(true); };
+els.listenBtn.onclick=()=>{ if(stage!=="recording") listen(true); };
 
-/* ---------- recording ---------- */
-async function turn(){
-  if(stage==="recording") return finish();
-  stopAll();
-  try{ await mic(); }catch(e){ toast("Microphone blocked — check permissions."); return; }
-  stage="listening";
-  flyReference(true,()=>countIn());
+/* ==================================================================
+   Pitch tracking — scoring only, never drawn
+   ================================================================== */
+function tracker(sr){
+  const dec=Math.max(1,Math.round(sr/12000)), s=sr/dec;
+  const tmin=Math.floor(s/450), tmax=Math.ceil(s/55), win=tmax*2;   /* floor 55 Hz: his
+     dip and creak register go well below the old 70 Hz bound */
+  const d=new Float32Array(tmax+2),cm=new Float32Array(tmax+2);
+  return function(block){
+    const n=Math.floor(block.length/dec); if(n<win) return null;
+    const x=new Float32Array(win),off=n-win;
+    for(let i=0;i<win;i++) x[i]=block[(off+i)*dec];
+    let e=0; for(let i=0;i<win;i++) e+=x[i]*x[i];
+    if(Math.sqrt(e/win)<0.0035) return null;
+    const half=win>>1;
+    for(let t=tmin;t<=tmax;t++){ let a=0; for(let i=0;i<half;i++){const dd=x[i]-x[i+t]; a+=dd*dd;} d[t]=a; }
+    let run=0; for(let t=tmin;t<=tmax;t++){ run+=d[t]; cm[t]=d[t]*(t-tmin+1)/Math.max(1e-9,run); }
+    let best=-1,bv=2;
+    for(let t=tmin+1;t<tmax;t++) if(cm[t]<bv){bv=cm[t];best=t;}
+    if(bv>0.55||best<0) return null;               /* forgiving clarity gate */
+    const a=cm[best-1],b=cm[best],c=cm[best+1],den=a-2*b+c;
+    const f0=s/(best+(den?0.5*(a-c)/den:0));
+    return (f0>=55&&f0<=450)?f0:null;              /* NO continuity seed here —
+       the old version locked onto the first frame (the attack) and dragged
+       the whole contour with it. Octaves are resolved globally, after. */
+  };
 }
+
+/* ---------- post-attempt analysis ---------- */
+function analyse(raw){
+  let v=raw.filter(p=>p.f0);
+  if(v.length<8) return null;
+
+  /* 1. global octave resolution against a robust centre, not the first frame */
+  const sorted=v.map(p=>p.f0).slice().sort((a,b)=>a-b);
+  let est=sorted[Math.floor(sorted.length/2)];
+  const fixed=[];
+  for(const p of v){
+    let c=[p.f0/2,p.f0,p.f0*2].reduce((m,x)=>Math.abs(Math.log2(x/est))<Math.abs(Math.log2(m/est))?x:m);
+    if(Math.abs(12*Math.log2(c/est))>8) continue;
+    est=est*0.75+c*0.25;
+    fixed.push({t:p.t,f0:c});
+  }
+  if(fixed.length<8) return null;
+
+  /* 2. bridge short unvoiced gaps — a creaky third-tone bottom is a real
+     part of the syllable, not the end of it */
+  const bridged=[];
+  for(let i=0;i<fixed.length;i++){
+    bridged.push(fixed[i]);
+    if(i+1<fixed.length){
+      const gap=fixed[i+1].t-fixed[i].t;
+      if(gap>40&&gap<=280){
+        const n=Math.round(gap/20);
+        for(let j=1;j<n;j++){
+          const u=j/n;
+          bridged.push({t:fixed[i].t+gap*u,
+            f0:Math.pow(2,Math.log2(fixed[i].f0)*(1-u)+Math.log2(fixed[i+1].f0)*u)});
+        }
+      }
+    }
+  }
+  /* 3. keep the longest continuous stretch */
+  let bA=0,bB=0,a=0;
+  for(let i=1;i<=bridged.length;i++){
+    if(i===bridged.length||bridged[i].t-bridged[i-1].t>300){
+      if(i-a>bB-bA){bA=a;bB=i;} a=i;
+    }
+  }
+  let run=bridged.slice(bA,bB);
+  if(run.length<8) return null;
+
+  /* 4. drop the attack and the release — the sustained vowel is the tone */
+  const t0=run[0].t,t1=run[run.length-1].t,len=t1-t0;
+  const head=Math.min(110,len*0.22), tail=Math.min(70,len*0.12);
+  const core=run.filter(p=>p.t>=t0+head&&p.t<=t1-tail);
+  if(core.length<6) return null;
+
+  /* 5. calibrate to the LEARNER's own register, never the teacher's */
+  const cs=core.map(p=>p.f0).slice().sort((a,b)=>a-b);
+  const med=cs[Math.floor(cs.length/2)];
+  userBaseline=userBaseline?userBaseline*0.6+med*0.4:med;
+  const st=core.map(p=>({t:(p.t-core[0].t)/Math.max(1,(core[core.length-1].t-core[0].t)),
+                         v:12*Math.log2(p.f0/med)}));
+
+  /* 6. resample + light smoothing */
+  const N=24,c2=[];
+  for(let i=0;i<N;i++){
+    const t=i/(N-1);
+    let lo=0; while(lo<st.length-2&&st[lo+1].t<t) lo++;
+    const p=st[lo],q=st[Math.min(st.length-1,lo+1)];
+    const u=(t-p.t)/Math.max(1e-6,q.t-p.t);
+    c2.push(p.v+(q.v-p.v)*Math.max(0,Math.min(1,u)));
+  }
+  const sm=c2.map((_,i)=>{
+    const w=c2.slice(Math.max(0,i-1),i+2); return w.reduce((x,y)=>x+y,0)/w.length; });
+  return {c:sm,durMs:len,frames:core.length};
+}
+
+const clamp=x=>Math.max(0,Math.min(100,x));
+const mean=a=>a.reduce((x,y)=>x+y,0)/a.length;
+function score(c){
+  const n=c.length, head=mean(c.slice(0,Math.round(n*0.3))), tail=mean(c.slice(-Math.round(n*0.3)));
+  if(tone===1){
+    const drift=Math.abs(tail-head);
+    const sp=c.slice().sort((a,b)=>a-b);
+    const spread=sp[Math.round(n*0.9)]-sp[Math.round(n*0.1)];
+    return clamp(100-13*Math.max(0,drift-1.3)-11*Math.max(0,spread-2.4));
+  }
+  if(tone===2) return clamp(100*(tail-head+0.6)/4.0);
+  if(tone===4) return clamp(100*(head-tail+0.6)/5.0);
+  /* tone 3: dip then recover */
+  let mi=2; for(let i=2;i<n-2;i++) if(c[i]<c[mi]) mi=i;
+  const fall=mean(c.slice(0,3))-c[mi], rise=mean(c.slice(-3))-c[mi];
+  return clamp(58*Math.min(1,fall/2.2)+42*Math.min(1,rise/1.8));
+}
+const bandOf=s=>BANDS.findIndex(b=>s>=b.min);
+
+/* ---------------- recording ---------------- */
+let analyser=null,micNode=null,tr=null,cap=null,rid=0,raw=[],recT0=0,lastVoice=0,gotVoice=0;
+
+async function turn(){
+  if(stage==="recording") return stop();
+  stopAll(); els.verdict.classList.remove("show");
+  try{ await getMic(); }catch(e){ toast("Microphone blocked — check permissions."); return; }
+  stage="listening";
+  listen(true,()=>countIn());
+}
+async function getMic(){ if(stream) return stream;
+  stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+  return stream; }
 function countIn(){
   stage="counting"; let n=3;
   els.count.textContent=n; els.count.classList.add("show"); cue("Get ready");
@@ -428,137 +545,89 @@ function countIn(){
     if(n===0){ clearInterval(iv); els.count.classList.remove("show"); begin(); }
     else els.count.textContent=n; },620);
 }
-async function mic(){
-  if(stream) return stream;
-  stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
-  return stream;
-}
-let analyser=null,micSrc=null,track=null,cap=null,rid=0;
-
-/* live pitch: decimate to ~12 kHz, YIN-style CMND, octave continuity.
-   Display only — this drives the bird, nothing else. */
-function makeTracker(sr){
-  const dec=Math.max(1,Math.round(sr/12000)), s=sr/dec;
-  const tmin=Math.floor(s/500), tmax=Math.ceil(s/70), win=tmax*2;
-  const d=new Float32Array(tmax+2), cm=new Float32Array(tmax+2);
-  let prev=null;
-  return function(block){
-    const n=Math.floor(block.length/dec); if(n<win){prev=null;return null;}
-    const x=new Float32Array(win), off=n-win;
-    for(let i=0;i<win;i++) x[i]=block[(off+i)*dec];
-    let e=0; for(let i=0;i<win;i++) e+=x[i]*x[i];
-    if(Math.sqrt(e/win)<0.006){prev=null;return null;}
-    const half=win>>1;
-    for(let t=tmin;t<=tmax;t++){ let s2=0;
-      for(let i=0;i<half;i++){const dd=x[i]-x[i+t]; s2+=dd*dd;} d[t]=s2; }
-    let run=0;
-    for(let t=tmin;t<=tmax;t++){ run+=d[t]; cm[t]=d[t]*(t-tmin+1)/Math.max(1e-9,run); }
-    const cands=[]; let best=-1,bv=2;
-    for(let t=tmin+1;t<tmax;t++){
-      if(cm[t]<cm[t-1]&&cm[t]<=cm[t+1]&&cm[t]<0.45) cands.push(t);
-      if(cm[t]<bv){bv=cm[t];best=t;}
-    }
-    if(bv>0.45||best<0){prev=null;return null;}
-    let pick=cands.find(t=>cm[t]<0.12); if(pick===undefined) pick=best;
-    if(prev){
-      const pt=s/prev; let bs=Infinity,bt=pick;
-      for(const t of cands.concat([pick])){
-        const cents=Math.abs(1200*Math.log2(t/pt));
-        const sc=cm[t]+Math.min(1.2,cents/1200)*0.30;
-        if(sc<bs){bs=sc;bt=t;}
-      }
-      pick=bt;
-    }
-    const a=cm[pick-1],b=cm[pick],c2=cm[pick+1],den=a-2*b+c2;
-    const f0=s/(pick+(den?0.5*(a-c2)/den:0));
-    if(f0<70||f0>500){prev=null;return null;}
-    prev=prev?prev*0.25+f0*0.75:f0;
-    return f0;
-  };
-}
 function begin(){
   const c=audio();
-  micSrc=c.createMediaStreamSource(stream);
-  analyser=c.createAnalyser(); analyser.fftSize=2048; micSrc.connect(analyser);
-  cap=new Float32Array(analyser.fftSize); track=makeTracker(c.sampleRate);
+  micNode=c.createMediaStreamSource(stream);
+  analyser=c.createAnalyser(); analyser.fftSize=2048; micNode.connect(analyser);
+  cap=new Float32Array(analyser.fftSize); tr=tracker(c.sampleRate);
   chunks=[];
   try{
     const m=["audio/webm","audio/mp4"].find(x=>window.MediaRecorder&&MediaRecorder.isTypeSupported(x));
     recorder=m?new MediaRecorder(stream,{mimeType:m}):null;
-    if(recorder){
-      recorder.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+    if(recorder){ recorder.ondataavailable=e=>e.data.size&&chunks.push(e.data);
       recorder.onstop=()=>{ if(chunks.length) learnerAudio=URL.createObjectURL(new Blob(chunks,{type:recorder.mimeType})); setChips(); };
-      recorder.start();
-    }
+      recorder.start(); }
   }catch(e){ recorder=null; }
-  learnerPath=[]; stage="recording";
+
+  raw=[]; recT0=performance.now(); lastVoice=0; gotVoice=0;
+  stage="recording";
   els.recBtn.innerHTML='<span class="dot"></span>Done';
   els.listenBtn.disabled=true;
   cue("Fly it yourself");
-  anim={kind:"live",t0:now(),durMs:Math.max(1500,ref.flightMs*2.4)};
+  /* the bird flies the guide while you speak — a karaoke ball, not a mirror */
+  anim={kind:"guide",path:ideal,t0:performance.now(),lead:0,dur:ASSETS[id].flightMs,total:1e9};
+
   const step=()=>{
     if(stage!=="recording") return;
     analyser.getFloatTimeDomainData(cap);
-    const f0=track(cap);
-    const t=(now()-anim.t0)/anim.durMs;
-    learnerPath.push([Math.min(1,t), f0?12*Math.log2(f0/BASE_HZ):null]);
-    if(t>=1) return finish();
+    const t=performance.now()-recT0;
+    const f0=tr(cap);
+    raw.push({t:t,f0:f0});
+    if(f0){ lastVoice=t; gotVoice+=16; }
+    /* generous window; stop on a real pause, not on a fixed clock */
+    if(t>5000||(gotVoice>250&&lastVoice&&t-lastVoice>600)) return stop();
     rid=requestAnimationFrame(step);
   };
   rid=requestAnimationFrame(step);
 }
-function finish(){
+function stop(){
   if(stage!=="recording") return;
-  cancelAnimationFrame(rid); stage="done";
+  cancelAnimationFrame(rid); stage="done"; anim=null;
   els.recBtn.innerHTML='<span class="dot"></span>Try again';
   els.listenBtn.disabled=false; els.cue.classList.remove("show");
   try{ recorder&&recorder.state!=="inactive"&&recorder.stop(); }catch(e){}
-  if(micSrc){ micSrc.disconnect(); micSrc=null; }
-  const v=learnerPath.filter(p=>p[1]!==null);
-  if(v.length<6){ learnerPath=[]; anim=null; setChips();
-    els.note.textContent="Didn't catch that — try again a little louder."; return; }
-  const a=v[0][0], b=v[v.length-1][0];
-  learnerPath=learnerPath.filter(p=>p[0]>=a&&p[0]<=b)
-    .map(p=>[(p[0]-a)/Math.max(1e-6,b-a),p[1]]);
-  learnerPath=med3(learnerPath);
-  anim={kind:"static"}; setChips();
-  els.note.textContent="Both flights are drawn. Replay either, or fly them together.";
-}
-function med3(p){
-  return p.map((q,i)=>{
-    if(q[1]===null) return q;
-    const w=[p[i-1],q,p[i+1]].filter(z=>z&&z[1]!==null).map(z=>z[1]).sort((x,y)=>x-y);
-    return [q[0],w[Math.floor(w.length/2)]];
-  });
+  if(micNode){ micNode.disconnect(); micNode=null; }
+
+  const a=analyse(raw);
+  if(!a){ result=null; setChips();
+    els.hint.textContent="Didn't catch that — try again a little louder."; return; }
+  const sc=Math.round(score(a.c));
+  result={score:sc,band:bandOf(sc)};
+  els.hint.textContent=HINT[tone];
+  showResult(true);
+  setChips();
 }
 els.recBtn.onclick=turn;
 
-/* ---------- replay ---------- */
-function setChips(){
-  const has=learnerPath.length>1;
-  $("rMA").disabled=!learnerAudio; $("rMP").disabled=!has; $("rB").disabled=!has;
+function showResult(auto){
+  if(!result) return;
+  const b=BANDS[result.band];
+  els.vband.textContent=b.name; els.vband.style.color=b.color;
+  els.vmsg.textContent=MSG[tone][result.band];
+  els.verdict.classList.add("show");
+  const seed=(result.band+1)*1.7+tone;
+  const path=designed(result.band,seed);
+  anim={kind:"graded",path:path,band:result.band,color:b.color,
+        feathers:feathers(result.band,path,seed),
+        t0:performance.now()+(auto?260:0),dur:Math.max(900,ASSETS[id].flightMs*1.35)};
 }
-$("rNA").onclick=()=>{ stopAll(); playNative(tone); cue("Teacher's voice",ref.eventMs+400); };
-$("rNP").onclick=()=>flyReference(false);
-$("rMA").onclick=()=>{ stopAll(); playLearner(); cue("Your voice",1600); };
-$("rMP").onclick=()=>{ stopAll(); cue("Your flight",ref.flightMs+400);
-  anim={kind:"fly",native:false,learner:true,t0:now(),flightMs:Math.max(700,ref.flightMs),totalMs:Math.max(700,ref.flightMs)+150}; };
-$("rB").onclick=()=>{ stopAll(); cue("Together",ref.flightMs+500);
-  const f=Math.max(900,ref.flightMs*1.3);
-  anim={kind:"fly",native:true,learner:true,t0:now(),leadMs:0,flightMs:f,totalMs:f+180}; };
 
+/* ---------------- replay ---------------- */
+function setChips(){ $("cMine").disabled=!learnerAudio; $("cFlight").disabled=!result; }
+$("cTeacher").onclick=()=>{ stopAll(); playNative(); cue("Teacher",1400); };
+$("cMine").onclick=()=>{ stopAll(); playMine(); cue("Your voice",1400); };
+$("cFlight").onclick=()=>{ stopAll(); showResult(false); };
 let ael=null;
-function playLearner(){ if(!learnerAudio) return;
-  if(!ael) ael=new Audio(); ael.src=learnerAudio; ael.currentTime=0; ael.play().catch(()=>{}); }
-function stopAll(){ stopNative(); if(ael) ael.pause();
-  anim=(anim&&anim.kind==="static")?anim:null; }
+function playMine(){ if(!learnerAudio) return; if(!ael) ael=new Audio();
+  ael.src=learnerAudio; ael.currentTime=0; ael.play().catch(()=>{}); }
+function stopAll(){ stopNative(); if(ael) ael.pause(); anim=null; }
 
 let tt=0;
 function toast(m){ els.toast.textContent=m; els.toast.classList.add("show");
   clearTimeout(tt); tt=setTimeout(()=>els.toast.classList.remove("show"),2600); }
-window.addEventListener("resize",()=>{ if(stage!=="menu") sizeField(); buildCards(); });
+window.addEventListener("resize",()=>{ if(stage!=="menu") sizeField(); cards(); });
 document.addEventListener("gesturestart",e=>e.preventDefault());
-buildCards();
+cards();
 </script>
 </body>
 </html>
