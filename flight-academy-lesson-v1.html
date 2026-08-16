@@ -1723,8 +1723,7 @@ flyer=function(x,y,bank,st,who){
   if(who==="mum"){
     if(DUET){ /* formation: a few pixels off her daughter's wing, never on top */
       x+=-Math.sin(bank)*FORM_PX; y+=Math.cos(bank)*FORM_PX; }
-    else if(!anim&&FLOWN){ /* between attempts she waits at the nest, not the start */
-      const l=lane(); x=PX(1,l); }
+    
     return _flyer(x,y,bank,st,who);
   }
   if(!XHH.complete||!XHH.naturalWidth) return _flyer(x,y,bank,st,who);
@@ -1766,6 +1765,31 @@ const nestImg=new Image(); nestImg.src="data:image/png;base64,iVBORw0KGgoAAAANSU
    untouched, microscopic ones vanish. Drawing only — scoring never
    sees this. */
 const SMOOTH_MS=80, DEADBAND_ST=0.5;
+/* WHY WE DO NOT DRAW analyseVerified's contour directly:
+   it keeps only the LONGEST CERTIFIED RUN, splitting at any refusal
+   longer than 280 ms. A natural tone 3 creaks at the trough, so the
+   trough is refused, the run splits, and what survives is only the
+   rise after it — which is why a tone 3 that scored Excellent (the
+   credit rule knows the creak IS the trough) drew as a plain rising
+   line. Scoring must stay strict about what it can certify. Drawing
+   must show the whole flight, so here we bridge the refused trough. */
+function drawContour(){
+  const fr=(lastVT&&lastVT.frames)?lastVT.frames.filter(f=>f.f0!=null):[];
+  if(fr.length<8) return null;
+  const t0=fr[0].t, t1=fr[fr.length-1].t, len=t1-t0;
+  if(len<140) return null;
+  const lg=fr.map(f=>({t:f.t,y:Math.log2(f.f0)}));
+  const ys=lg.map(p=>p.y).slice().sort((a,b)=>a-b), med=ys[ys.length>>1];
+  const N=24, out=[];
+  for(let i=0;i<N;i++){
+    const t=t0+len*(i/(N-1));
+    let k=0; while(k<lg.length-2&&lg[k+1].t<t) k++;
+    const p=lg[k], q=lg[Math.min(lg.length-1,k+1)];
+    const u=(t-p.t)/Math.max(1e-6,q.t-p.t);
+    out.push(12*((p.y+(q.y-p.y)*Math.max(0,Math.min(1,u)))-med));
+  }
+  return out;
+}
 function gauss(a,sig){
   if(sig<=0.01) return a.slice();
   const r=Math.max(1,Math.ceil(sig*3)), k=[];
@@ -1787,9 +1811,28 @@ function shapeOf(c,figMs){
 }
 
 /* a perf that flies the learner's own certified contour */
-function learnerPerf(craw, figMs, band){
+const BLEND=[0.85,0.70,0.55,0.40];   /* Excellent -> Try again */
+function taughtAt(u){
+  const p=ideal||[[0,0],[1,0]];
+  for(let i=0;i<p.length-1;i++) if(u<=p[i+1][0]){
+    const v=(u-p[i][0])/Math.max(1e-6,p[i+1][0]-p[i][0]);
+    return p[i][1]+(p[i+1][1]-p[i][1])*v; }
+  return p[p.length-1][1];
+}
+function learnerPerf(craw, figMs, band, wrong){
   const B=PERF[band];
-  const c=shapeOf(craw,figMs);
+  let c=shapeOf(craw,figMs);
+  if(!wrong){
+    /* Positive feedback follows the tone's own curve. A perfect attempt
+       lands almost on 花花's line; below that it degrades by degrees
+       without ever leaving the shape. A WRONG tone is never pulled onto
+       this curve — seeing the rise IS the lesson. */
+    const w=BLEND[band];
+    const cb=c.reduce((a,b)=>a+b,0)/c.length;
+    const tb=(function(){ let s=0; for(let i=0;i<c.length;i++) s+=taughtAt(i/(c.length-1)); return s/c.length; })();
+    c=c.map((v,i)=>{ const t=taughtAt(i/(c.length-1));
+                     return w*t+(1-w)*(v-cb+tb); });
+  }
   const base=c.reduce((a,b)=>a+b,0)/c.length;
   const tgt=(function(){ const p=ideal||[[0,0]]; let s=0; for(const q of p) s+=q[1]; return s/p.length; })();
   const st=c.map(v=>v-base+tgt);                    /* same screen band, her shape */
@@ -1878,11 +1921,11 @@ showResult=function(auto){
   _showResult(auto);
   if(!result) return;
   FLOWN=true;
-  if(LAST_A&&LAST_A.c&&LAST_A.c.length){
+  if((lastVT&&lastVT.frames)||(LAST_A&&LAST_A.c)){
     const wrong = !!(result.action && result.best && result.best!==tone);
     const px = wrong?WRONG_GAP_PX:GAP_PX[result.band];
     const figMs=Math.max(420,(EX.flightMs||600));
-    const P=learnerPerf(LAST_A.c,figMs,result.band);
+    const P=learnerPerf(drawContour()||LAST_A.c,figMs,result.band,wrong);
     DUET={px:px, band:result.band, wrong:wrong, t0:performance.now()+(auto?280:0), perf:P};
     anim={teacher:trailPerf(P,px),                    /* 花花 accompanies, px behind */
           child:{perf:P, lag:0, gap:0, color:BANDS[result.band].color},
@@ -1901,15 +1944,23 @@ showResult=function(auto){
 /* ---- the nest, and how they arrive -------------------------------- */
 const _frame_sky=sky;
 sky=function(){ _frame_sky();
-  if(!DUET||!nestImg.complete||!nestImg.naturalWidth) return;
+  if(stage==="menu"||!nestImg.complete||!nestImg.naturalWidth) return;
   const l=lane(), s=span(), w=104, h=w*nestImg.naturalHeight/nestImg.naturalWidth;
-  const p=(DUET?DUET.perf:teacherPerf).at(1e9);
+  const p=(DUET?DUET.perf:teacherPerf).at(1e9);   /* the far right, always */
   g.save(); g.globalAlpha=.95;
   g.drawImage(nestImg, PX(1,l)-w*0.42, PY(p.st,l,s)-h*0.30, w, h);
   g.restore();
 };
 const _frame=frame;
 frame=function(){ _frame();
+  /* before the flight both birds wait together on the left, under the
+     nest that marks the finish. 小花花 has no flight of her own yet. */
+  if(!DUET&&stage!=="menu"&&!(anim&&anim.child)&&XHH.complete&&XHH.naturalWidth){
+    const l=lane(), s=span(), p=teacherPerf.at(0);
+    const w=46, h=w*XHH.naturalHeight/XHH.naturalWidth;
+    g.save(); g.translate(PX(0,l)-30, PY(p.st,l,s)+16+Math.cos(beat*1.1)*2);
+    g.drawImage(XHH,-w*0.46,-h*0.52,w,h); g.restore();
+  }
   if(!DUET) return;
   const el=performance.now()-DUET.t0, done=DUET.perf.total;
   if(el<done) return;
