@@ -1140,10 +1140,22 @@ function t3xEvidence(rawSeg,x,sr,floor){
   const pre=v[gi-1], post=v[gi];
   const pos=((pre.t+post.t)/2-t0)/span;
   if(pos<0.12||pos>0.85) return {active:false,why:"gap not interior"};
-  const entry=(t3xSt(v[gi-1].f0)+t3xSt(v[gi-2].f0)+t3xSt(v[gi-3].f0))/3;
+  const med3=(a,b,c)=>[a,b,c].sort((p,q)=>p-q)[1]; /* MEDIAN, not mean: one
+      spurious tracker frame at the gap boundary must not poison the estimate */
+  const entry=med3(t3xSt(v[gi-1].f0),t3xSt(v[gi-2].f0),t3xSt(v[gi-3].f0));
+  const onset=med3(sts[0],sts[1],sts[2]);
+  const preVsEarly=entry-onset;
+  /* THE T2/T3 LINE (measured on his own labelled attempts): a real tone 3
+     FALLS into its creak (-0.2..-8.9 st); a deliberate tone 2 RISES into it
+     (+0.7..+1.1 st). A rising entry is POSITIVE evidence of tone 2, so the
+     credit is refused and the frozen "different tone" verdict must stand —
+     the long-gap retry is suppressed for t2shape at the call sites. */
+  if(preVsEarly>=0.6) return {active:false,t2shape:true,
+      preVsEarly:+preVsEarly.toFixed(2),
+      why:"rising into the creak (second-tone shape)"};
   const rise=late-minC;
-  if(rise<1.5) return {active:false,why:"rise <1.5st"};
-  const post3=(t3xSt(v[gi].f0)+t3xSt(v[gi+1].f0)+t3xSt(v[gi+2].f0))/3;
+  if(rise<1.5) return {active:false,preVsEarly:+preVsEarly.toFixed(2),why:"rise <1.5st"};
+  const post3=med3(t3xSt(v[gi].f0),t3xSt(v[gi+1].f0),t3xSt(v[gi+2].f0));
   if((late-post3)<1.0&&g<200) return {active:false,why:"post side flat, short gap"};
   const ck=creakDetect(x,sr,floor,pre.t,post.t);
   if(ck.type==="none") return {active:false,why:"no laryngeal event in gap"};
@@ -1153,7 +1165,8 @@ function t3xEvidence(rawSeg,x,sr,floor){
   }
   const interior=clamp01((pos-0.12)/0.08)*clamp01((0.85-pos)/0.08);
   return {active:true,fit3x:100*interior*clamp01(rise/3.0),creak:ck.type,
-          pulses:ck.pulses||0,gapMs:Math.round(g),pos:+pos.toFixed(2),rise:+rise.toFixed(1)};
+          pulses:ck.pulses||0,gapMs:Math.round(g),pos:+pos.toFixed(2),rise:+rise.toFixed(1),
+          preVsEarly:+preVsEarly.toFixed(2)};
 }
 function fullCertContour(rawSeg){
   const v=rawSeg.filter(p=>p.f0); if(v.length<8) return null;
@@ -1172,6 +1185,8 @@ function fullCertContour(rawSeg){
 function applyT3X(j0,rawSeg,x,sr,floor){
   const ex=t3xEvidence(rawSeg,x,sr,floor);
   const info={active:ex.active,used:false,why:ex.why||null,creak:ex.creak||null,
+              t2shape:!!ex.t2shape,
+              pre_vs_early:(ex.preVsEarly!==undefined?ex.preVsEarly:null),
               pulses:(ex.pulses!==undefined?ex.pulses:null),
               fit3_frozen:Math.round(j0.fit[3]),fit3x:ex.active?Math.round(ex.fit3x):null,
               gap_ms:ex.gapMs||null,pos:(ex.pos!==undefined?ex.pos:null),
@@ -1398,7 +1413,7 @@ function finish(){
         const rx=applyT3X(jj, fr, audioF32, recSR, floorRms);
         rx.info.syllable=i+1; lastT3X=rx.info;
         if(rx.judged) jj=rx.judged;
-        else if(jj.score<70 && t3xLongGapRetry(fr)){ lastT3X.retry=true;
+        else if(!rx.info.t2shape && jj.score<70 && t3xLongGapRetry(fr)){ lastT3X.retry=true;
           perSyl.push({tone:want,score:0,fall:0,starved:true}); continue; }
       }
       perSyl.push({tone:want,score:jj.score,fall:jj.f.early-jj.f.late,c:an.c});
@@ -1430,8 +1445,10 @@ function finish(){
     const rx=applyT3X(j, raw, audioF32, recSR, floorRms);
     lastT3X=rx.info; if(rx.judged) j=rx.judged;
     /* the retry exists to prevent one-sided LIES; a passing frozen score
-       means the kept run contained the whole tone — never downgrade it */
-    else if(j.score<70 && t3xLongGapRetry(raw)){
+       means the kept run contained the whole tone — never downgrade it.
+       A rising entry (t2shape) is positive tone-2 evidence: no gentle
+       retry — the frozen "different tone" verdict stands. */
+    else if(!rx.info.t2shape && j.score<70 && t3xLongGapRetry(raw)){
       lastT3X.retry=true;
       result=null; setChips();
       els.hint.textContent=T3X_MSG;
@@ -1594,7 +1611,7 @@ function devSheet(){
   sh.querySelector("#sSil").oninput=e=>{ CFG.silenceMs=+e.target.value; sh.querySelector("#vSil").textContent=CFG.silenceMs+" ms"; };
   sh.querySelector("#dlBtn").onclick=()=>{
     if(!capture.length) return toast("Nothing captured yet");
-    const doc={schema:"fa-calibration-1",tool:"flight-academy-demo-v6-t3x2",
+    const doc={schema:"fa-calibration-1",tool:"flight-academy-demo-v6-t3x3",
       exported_utc:new Date().toISOString(),count:capture.length,attempts:capture};
     download(new Blob([JSON.stringify(doc)],{type:"application/json"}),
       "fa_calibration_"+new Date().toISOString().replace(/[:.]/g,"").slice(0,15)+".json");
