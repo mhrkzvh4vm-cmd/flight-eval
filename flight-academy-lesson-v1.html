@@ -1710,6 +1710,13 @@ function sparkle(n){
   requestAnimationFrame(beat);
 })();
 
+/* ---- tone 3 flies as ONE continuous swoop -------------------------
+   The taught shape was four points joined by straight lines, so the dip
+   read as three strokes. Same start, same floor, same ending — resampled
+   as a single curve with rounded entry, trough and exit. Animation only:
+   this shape has never been part of scoring. */
+if(window.ASSETS && ASSETS.FA_003) ASSETS.FA_003.ideal=[[0.0,-4.91],[0.0233,-4.96],[0.0465,-5.11],[0.0698,-5.35],[0.093,-5.66],[0.1163,-6.04],[0.1395,-6.47],[0.1628,-6.95],[0.186,-7.45],[0.2093,-7.98],[0.2326,-8.51],[0.2558,-9.05],[0.2791,-9.57],[0.3023,-10.07],[0.3256,-10.54],[0.3488,-10.96],[0.3721,-11.32],[0.3953,-11.62],[0.4186,-11.84],[0.4419,-11.97],[0.4651,-12.0],[0.4884,-11.96],[0.5116,-11.86],[0.5349,-11.71],[0.5581,-11.51],[0.5814,-11.28],[0.6047,-11.01],[0.6279,-10.71],[0.6512,-10.39],[0.6744,-10.06],[0.6977,-9.7],[0.7209,-9.35],[0.7442,-8.98],[0.7674,-8.63],[0.7907,-8.28],[0.814,-7.94],[0.8372,-7.63],[0.8605,-7.34],[0.8837,-7.08],[0.907,-6.85],[0.9302,-6.67],[0.9535,-6.53],[0.9767,-6.44],[1.0,-6.41]];
+
 /* ---- 小花花 takes the flight -------------------------------------- */
 const _flyer=flyer;
 flyer=function(x,y,bank,st,who){
