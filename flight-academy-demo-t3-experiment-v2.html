@@ -1398,7 +1398,7 @@ function finish(){
         const rx=applyT3X(jj, fr, audioF32, recSR, floorRms);
         rx.info.syllable=i+1; lastT3X=rx.info;
         if(rx.judged) jj=rx.judged;
-        else if(t3xLongGapRetry(fr)){ lastT3X.retry=true;
+        else if(jj.score<70 && t3xLongGapRetry(fr)){ lastT3X.retry=true;
           perSyl.push({tone:want,score:0,fall:0,starved:true}); continue; }
       }
       perSyl.push({tone:want,score:jj.score,fall:jj.f.early-jj.f.late,c:an.c});
@@ -1429,7 +1429,9 @@ function finish(){
   if(!isPair && tone===3 && CFG.t3x){
     const rx=applyT3X(j, raw, audioF32, recSR, floorRms);
     lastT3X=rx.info; if(rx.judged) j=rx.judged;
-    else if(t3xLongGapRetry(raw)){
+    /* the retry exists to prevent one-sided LIES; a passing frozen score
+       means the kept run contained the whole tone — never downgrade it */
+    else if(j.score<70 && t3xLongGapRetry(raw)){
       lastT3X.retry=true;
       result=null; setChips();
       els.hint.textContent=T3X_MSG;
