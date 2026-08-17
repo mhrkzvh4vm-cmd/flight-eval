@@ -1611,7 +1611,7 @@ function devSheet(){
   sh.querySelector("#sSil").oninput=e=>{ CFG.silenceMs=+e.target.value; sh.querySelector("#vSil").textContent=CFG.silenceMs+" ms"; };
   sh.querySelector("#dlBtn").onclick=()=>{
     if(!capture.length) return toast("Nothing captured yet");
-    const doc={schema:"fa-calibration-1",tool:"flight-academy-live-lesson-v3",device:(window.FA_DEVICE_INFO?window.FA_DEVICE_INFO():null),drawn:(window.FA_LAST_DRAWN||null),live:(window.FA_LIVE_TRACE||null),
+    const doc={schema:"fa-calibration-1",tool:"flight-academy-live-lesson-v4",device:(window.FA_DEVICE_INFO?window.FA_DEVICE_INFO():null),drawn:(window.FA_LAST_DRAWN||null),live:(window.FA_LIVE_TRACE||null),
       exported_utc:new Date().toISOString(),count:capture.length,attempts:capture};
     download(new Blob([JSON.stringify(doc)],{type:"application/json"}),
       "fa_calibration_"+new Date().toISOString().replace(/[:.]/g,"").slice(0,15)+".json");
@@ -1658,7 +1658,7 @@ const HHFLY=new Image(); HHFLY.src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUg
 const SCALE={hero:1.0,excellent:.88,ok:.86,listen:.84,point:.86,think:.84};
 let hhState=null, hhT0=0;
 (function(){ const b=document.createElement("div");
-  b.textContent="live-lesson-v3";
+  b.textContent="live-lesson-v4";
   b.style.cssText="position:fixed;top:6px;right:8px;z-index:99;font:600 10px/1.6 -apple-system,sans-serif;"+
     "letter-spacing:.06em;color:rgba(62,74,99,.55);background:rgba(255,253,248,.8);"+
     "padding:1px 7px;border-radius:999px;border:1px solid rgba(62,74,99,.15);pointer-events:none";
@@ -1943,8 +1943,11 @@ showResult=function(auto){
   if(auto&&LIVE.ran){
     /* the live flight WAS flight two — no automatic third. The birds
        settle at the nest; "My flight" replays on request. */
-    try{ window.FA_LIVE_TRACE={delay_ms:LIVE.delayMs, frames:LIVE.frames.length,
-         post_ms:+(LIVE.msSum/Math.max(1,LIVE.msN)).toFixed(2)}; }catch(e){}
+    try{ window.FA_LIVE_TRACE={delay_ms:LIVE.delayMs,
+         post_ms:+(LIVE.msSum/Math.max(1,LIVE.msN)).toFixed(2),
+         final_cls:LIVE.cls, target:tone,
+         frames:LIVE.frames.map(f=>[+f[0].toFixed(3),+f[1].toFixed(1)]),
+         log:LIVE.log, draw:LIVE.draw}; }catch(e){}
     const nestSt=teacherPerf.at(1e9).st;
     const hover={total:1,figMs:1,band:result.band,feathers:[],B:PERF[result.band],
                  swing:2.5,endSt:nestSt,
@@ -1994,7 +1997,7 @@ showResult=function(auto){
    stage of the same pipeline that scores, so live and final can
    never disagree. Any failure here disables live and nothing else.
    ================================================================== */
-const LIVE={enabled:true, delayMs:160, ran:false, frames:[], trail:[], cls:null, onRun:0, offRun:0, reg:null, worker:null,
+const LIVE={enabled:true, delayMs:160, ran:false, frames:[], trail:[], cls:null, onRun:0, offRun:0, reg:null, log:[], draw:[], lastLog:0, worker:null,
             timer:null, beginWall:0, msSum:0, msN:0, med:null, interpY:null};
 try{
   const wsrc=`(function (root, factory) {
@@ -2207,7 +2210,7 @@ function liveTail(sec){
 const _begin=begin;
 begin=function(){
   const r=_begin();
-  LIVE.frames=[]; LIVE.trail=[]; LIVE.cls=null; LIVE.onRun=0; LIVE.offRun=0; LIVE.reg=null; LIVE.interpY=null; LIVE.ran=false;
+  LIVE.frames=[]; LIVE.trail=[]; LIVE.cls=null; LIVE.onRun=0; LIVE.offRun=0; LIVE.reg=null; LIVE.log=[]; LIVE.draw=[]; LIVE.lastLog=0; LIVE.interpY=null; LIVE.ran=false;
   LIVE.beginWall=performance.now();
   if(LIVE.enabled&&LIVE.worker){
     anim&&(anim.t0+=LIVE.delayMs);            /* the whole duet runs just behind the mic */
@@ -2250,10 +2253,17 @@ function liveClassify(){
   let a=105; try{a=currentAnchorHz()||105;}catch(e){}
   const T=anim&&anim.teacher?anim.teacher:teacherPerf;
   const fig=T.figMs||800;
+  /* the SHAPE of what he sang is judged on the voice's own timeline
+     (first certified frame -> latest), not the display clock — a late
+     or early start must not smear the corridor comparison */
   const pts=[];
-  for(const f of LIVE.frames){
-    const u=(f[0]*1000-LEAD_MS)/fig;
-    if(u>=0&&u<=1) pts.push([u,12*Math.log2(f[1]/a)]);
+  if(LIVE.frames.length){
+    const t0=LIVE.frames[0][0], t1=LIVE.frames[LIVE.frames.length-1][0];
+    const spanS=Math.max(0.25,t1-t0);
+    for(const f of LIVE.frames){
+      const u=(f[0]-t0)/spanS;
+      if(u>=0&&u<=1) pts.push([u,12*Math.log2(f[1]/a)]);
+    }
   }
   if(pts.length<10) return {cls:0,ok:true,n:pts.length};
   const us=pts.map(q=>q[0]), uSpan=Math.max(...us)-Math.min(...us);
@@ -2275,6 +2285,13 @@ function liveClassify(){
 }
 function liveY(u){
   const cl=liveClassify();
+  const nowMs=performance.now();
+  if(nowMs-LIVE.lastLog>100){ LIVE.lastLog=nowMs;
+    LIVE.log.push({u:+u.toFixed(3),cls:cl.cls,ok:cl.ok?1:0,n:cl.n,
+      tgtR:cl.tgtR!=null?+cl.tgtR.toFixed(2):null,
+      bestR:cl.bestR!=null?+cl.bestR.toFixed(2):null,
+      uSpan:cl.uSpan!=null?+cl.uSpan.toFixed(2):null,
+      state:LIVE.cls}); }
   if(cl.n>=8){
     if(cl.ok){ LIVE.offRun=0; if(LIVE.cls!==tone&&++LIVE.onRun>=6) LIVE.cls=tone; }
     else { LIVE.onRun=0; if(LIVE.cls!==cl.cls&&++LIVE.offRun>=6) LIVE.cls=cl.cls; }
@@ -2309,6 +2326,7 @@ function liveY(u){
   }
   const y=goal+0.6*dev;
   LIVE.interpY=(LIVE.interpY==null)?y:LIVE.interpY+(y-LIVE.interpY)*0.30;
+  if(LIVE.draw.length<400) LIVE.draw.push([+u.toFixed(3),+((k===tone)?1:0),+goal.toFixed(2),+LIVE.interpY.toFixed(2)]);
   return LIVE.interpY;
 }
 
