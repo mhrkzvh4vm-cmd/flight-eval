@@ -1611,7 +1611,7 @@ function devSheet(){
   sh.querySelector("#sSil").oninput=e=>{ CFG.silenceMs=+e.target.value; sh.querySelector("#vSil").textContent=CFG.silenceMs+" ms"; };
   sh.querySelector("#dlBtn").onclick=()=>{
     if(!capture.length) return toast("Nothing captured yet");
-    const doc={schema:"fa-calibration-1",tool:"flight-academy-live-lesson-v1",device:(window.FA_DEVICE_INFO?window.FA_DEVICE_INFO():null),drawn:(window.FA_LAST_DRAWN||null),live:(window.FA_LIVE_TRACE||null),
+    const doc={schema:"fa-calibration-1",tool:"flight-academy-live-lesson-v2",device:(window.FA_DEVICE_INFO?window.FA_DEVICE_INFO():null),drawn:(window.FA_LAST_DRAWN||null),live:(window.FA_LIVE_TRACE||null),
       exported_utc:new Date().toISOString(),count:capture.length,attempts:capture};
     download(new Blob([JSON.stringify(doc)],{type:"application/json"}),
       "fa_calibration_"+new Date().toISOString().replace(/[:.]/g,"").slice(0,15)+".json");
@@ -1988,7 +1988,7 @@ showResult=function(auto){
    stage of the same pipeline that scores, so live and final can
    never disagree. Any failure here disables live and nothing else.
    ================================================================== */
-const LIVE={enabled:true, delayMs:160, ran:false, frames:[], trail:[], worker:null,
+const LIVE={enabled:true, delayMs:160, ran:false, frames:[], trail:[], cls:null, onRun:0, offRun:0, reg:null, worker:null,
             timer:null, beginWall:0, msSum:0, msN:0, med:null, interpY:null};
 try{
   const wsrc=`(function (root, factory) {
@@ -2201,7 +2201,7 @@ function liveTail(sec){
 const _begin=begin;
 begin=function(){
   const r=_begin();
-  LIVE.frames=[]; LIVE.trail=[]; LIVE.med=null; LIVE.interpY=null; LIVE.ran=false;
+  LIVE.frames=[]; LIVE.trail=[]; LIVE.cls=null; LIVE.onRun=0; LIVE.offRun=0; LIVE.reg=null; LIVE.interpY=null; LIVE.ran=false;
   LIVE.beginWall=performance.now();
   if(LIVE.enabled&&LIVE.worker){
     anim&&(anim.t0+=LIVE.delayMs);            /* the whole duet runs just behind the mic */
@@ -2218,6 +2218,86 @@ begin=function(){
   }
   return r;
 };
+/* ==================================================================
+   LIVE CLASSIFICATION — distinct pass and fail paths (his directive).
+   The engine decides WHICH PATH this performance fits and the daughter
+   flies that path cleanly:
+     ON TRACK  -> the target corridor, tiny bounded deviation, GREEN.
+     OFF TRACK -> the clean shape of the tone actually being produced,
+                  drawn in the warning colour — transitioned smoothly
+                  once the evidence is strong and stays (hysteresis).
+   Register is solved in the expectation frame (residual to each
+   corridor), so a sparse creaky trough cannot starve the curve: on
+   track means she flies the FULL corridor, not the certified scraps.
+   ================================================================== */
+function toneShape(k){        /* canonical shapes, relative st */
+  if(k===1) return u=>3.6;
+  if(k===2) return u=>-3.5+7*u;
+  if(k===4) return u=>4-8*u;
+  return u=>{const tm=0.46,S=v=>v*v*(3-2*v);
+    return u<tm? -0.5-6.5*S(u/tm) : -7+5.2*S((u-tm)/(1-tm));};
+}
+function shapeMean(f){let s=0;for(let k=0;k<12;k++)s+=f(k/11);return s/12;}
+function liveClassify(){
+  /* residual of the certified evidence against each tone's corridor,
+     register solved per-tone by median in the expectation frame */
+  let a=105; try{a=currentAnchorHz()||105;}catch(e){}
+  const T=anim&&anim.teacher?anim.teacher:teacherPerf;
+  const fig=T.figMs||800;
+  const pts=[];
+  for(const f of LIVE.frames){
+    const u=(f[0]*1000-LEAD_MS)/fig;
+    if(u>=0&&u<=1) pts.push([u,12*Math.log2(f[1]/a)]);
+  }
+  if(pts.length<8) return {cls:0,ok:true,n:pts.length};
+  let best=0,bestR=1e9,tgtR=0;
+  for(const k of [1,2,3,4]){
+    const S=toneShape(k),Sm=shapeMean(S);
+    const rs=pts.map(q=>q[1]-(S(q[0])-Sm)).sort((x,y)=>x-y);
+    const med=rs[rs.length>>1];
+    const abs=pts.map(q=>Math.abs(q[1]-(med+(S(q[0])-Sm)))).sort((x,y)=>x-y);
+    const r=abs[abs.length>>1];
+    if(k===tone) tgtR=r;
+    if(r<bestR){bestR=r;best=k;}
+  }
+  return {cls:best,ok:(best===tone)||(tgtR-bestR<1.2),n:pts.length,tgtR,bestR};
+}
+function liveY(u){
+  const cl=liveClassify();
+  if(cl.n>=8){
+    if(cl.ok){ LIVE.offRun=0; if(LIVE.cls!==tone&&++LIVE.onRun>=6) LIVE.cls=tone; }
+    else { LIVE.onRun=0; if(LIVE.cls!==cl.cls&&++LIVE.offRun>=6) LIVE.cls=cl.cls; }
+  }
+  const k=(LIVE.cls==null)?tone:LIVE.cls;
+  const S=toneShape(k),Sm=shapeMean(S);
+  const Tt=taughtAt(Math.max(0,Math.min(1,u)));
+  const Tm2=(function(){let s=0;for(let j=0;j<12;j++)s+=taughtAt(j/11);return s/12;})();
+  /* the flown path: target corridor when on track; the produced tone's
+     clean shape, placed in the same lane, when off */
+  const goal=(k===tone)?Tt:(S(Math.max(0,Math.min(1,u)))-Sm+Tm2);
+  /* tiny bounded life from the voice — never enough to break the shape */
+  let dev=0, a=105; try{a=currentAnchorHz()||105;}catch(e){}
+  const cs=[];
+  for(const f of LIVE.frames){
+    const fu=(f[0]*1000-LEAD_MS)/((anim&&anim.teacher?anim.teacher:teacherPerf).figMs||800);
+    if(Math.abs(fu-u)<=0.06) cs.push(12*Math.log2(f[1]/a));
+  }
+  if(cs.length&&LIVE.reg!=null){
+    cs.sort((x,y)=>x-y);
+    dev=Math.max(-2.2,Math.min(2.2,(cs[(cs.length-1)>>1]-LIVE.reg)-(S(u)-Sm)));
+  }
+  /* register estimate, expectation-framed so no corridor part biases it */
+  if(LIVE.frames.length>=5){
+    const rs=[]; const fig=(anim&&anim.teacher?anim.teacher:teacherPerf).figMs||800;
+    for(const f of LIVE.frames){const fu=(f[0]*1000-LEAD_MS)/fig;
+      if(fu>=0&&fu<=1) rs.push(12*Math.log2(f[1]/a)-(S(fu)-Sm));}
+    if(rs.length>=5){rs.sort((x,y)=>x-y);LIVE.reg=rs[rs.length>>1];}
+  }
+  const y=goal+0.6*dev;
+  LIVE.interpY=(LIVE.interpY==null)?y:LIVE.interpY+(y-LIVE.interpY)*0.30;
+  return LIVE.interpY;
+}
+
 /* interpretation: corridor-anchored, confidence-weighted, vertical only */
 function liveY(u){
   const capT=(performance.now()-LIVE.beginWall)/1000;
@@ -2264,13 +2344,22 @@ frame=function(){ _frame();
       const tp=anim.teacher.at(Math.min(el,anim.teacher.total));
       const u=tp.x, y=liveY(u);
       const l=lane(), s=span();
+      const onTrack=(LIVE.cls==null||LIVE.cls===tone);
       if(tp.stage==="figure"&&(!LIVE.trail.length||u>LIVE.trail[LIVE.trail.length-1][0]+1e-4))
-        LIVE.trail.push([u,y]);
-      if(LIVE.trail.length>1){        /* the student's line, beside the teacher's */
-        g.save(); g.strokeStyle="#2E6B4F"; g.lineWidth=4; g.lineJoin="round";
-        g.globalAlpha=0.9; g.beginPath();
-        LIVE.trail.forEach((q,k)=>{const px=PX(q[0],l),py=PY(q[1],l,s); k?g.lineTo(px,py):g.moveTo(px,py);});
-        g.stroke(); g.restore();
+        LIVE.trail.push([u,y,onTrack?1:0]);
+      if(LIVE.trail.length>1){        /* the student's line: green on track,
+                                         warning colour once the evidence says
+                                         a different tone is being flown */
+        g.save(); g.lineWidth=4; g.lineJoin="round"; g.globalAlpha=0.9;
+        let run=[LIVE.trail[0]];
+        const stroke=(seg)=>{ if(seg.length<2) return;
+          g.strokeStyle=seg[seg.length-1][2]?"#2E6B4F":"#B3402F"; g.beginPath();
+          seg.forEach((q,k)=>{const px=PX(q[0],l),py=PY(q[1],l,s);k?g.lineTo(px,py):g.moveTo(px,py);});
+          g.stroke(); };
+        for(let k=1;k<LIVE.trail.length;k++){
+          if(LIVE.trail[k][2]!==run[run.length-1][2]){ run.push(LIVE.trail[k]); stroke(run); run=[LIVE.trail[k]]; }
+          else run.push(LIVE.trail[k]); }
+        stroke(run); g.restore();
       }
       const w=46, h=w*XHH.naturalHeight/XHH.naturalWidth;
       if(XHH.complete&&XHH.naturalWidth){
