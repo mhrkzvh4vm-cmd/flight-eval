@@ -1611,7 +1611,7 @@ function devSheet(){
   sh.querySelector("#sSil").oninput=e=>{ CFG.silenceMs=+e.target.value; sh.querySelector("#vSil").textContent=CFG.silenceMs+" ms"; };
   sh.querySelector("#dlBtn").onclick=()=>{
     if(!capture.length) return toast("Nothing captured yet");
-    const doc={schema:"fa-calibration-1",tool:"flight-academy-lesson-v1",device:(window.FA_DEVICE_INFO?window.FA_DEVICE_INFO():null),
+    const doc={schema:"fa-calibration-1",tool:"flight-academy-lesson-v1",device:(window.FA_DEVICE_INFO?window.FA_DEVICE_INFO():null),drawn:(window.FA_LAST_DRAWN||null),
       exported_utc:new Date().toISOString(),count:capture.length,attempts:capture};
     download(new Blob([JSON.stringify(doc)],{type:"application/json"}),
       "fa_calibration_"+new Date().toISOString().replace(/[:.]/g,"").slice(0,15)+".json");
@@ -1838,15 +1838,19 @@ function learnerPerf(craw, figMs, band, wrong){
     c=c.map((v,i)=>{ const t=taughtAt(i/(c.length-1));
                      return w*t+(1-w)*(v-cb+tb); });
   }
-  const base=c.reduce((a,b)=>a+b,0)/c.length;
-  const tgt=(function(){ const p=ideal||[[0,0]]; let s=0; for(const q of p) s+=q[1]; return s/p.length; })();
-  const st=c.map(v=>v-base+tgt);                    /* same screen band, her shape */
+  if(wrong){ /* a wrong tone keeps its true shape, centered where the
+                 exercise lives so the comparison is honest */
+    const base=c.reduce((a,b)=>a+b,0)/c.length;
+    const tb=(function(){ let s=0; for(let i=0;i<c.length;i++) s+=taughtAt(i/(c.length-1)); return s/c.length; })();
+    c=c.map(v=>v-base+tb);
+  }
+  /* the nest never moves: every flight ends exactly there */
+  const lift=taughtAt(1)-c[c.length-1];
+  const st=c.map(v=>v+lift);
+  try{ window.FA_LAST_DRAWN={band:band,wrong:!!wrong,
+       st:st.map(v=>+v.toFixed(2))}; }catch(e){}
   const H=(u)=>{ const t=Math.max(0,Math.min(1,u))*(st.length-1), i=Math.floor(t), f=t-i;
                  return st[i]+((st[Math.min(st.length-1,i+1)]-st[i])*f); };
-  /* the nest does not move for anyone: the flight is shifted so it
-     ENDS at the nest, and every deviation lives along the way there */
-  const nestSt=taughtAt(1), lift=nestSt-c[c.length-1];
-  const st2=c.map(v=>v+lift); c=st2;
   const total=LEAD_MS+figMs+TAIL_MS, endSt=H(1);
   let lo=Math.min(...st), hi=Math.max(...st);
   return {
@@ -1935,6 +1939,8 @@ showResult=function(auto){
     const px = wrong?WRONG_GAP_PX:GAP_PX[result.band];
     const figMs=Math.max(420,(EX.flightMs||600));
     const P=learnerPerf(drawContour()||LAST_A.c,figMs,result.band,wrong);
+    try{ if(window.FA_LAST_DRAWN){ window.FA_LAST_DRAWN.best=result.best||null;
+         window.FA_LAST_DRAWN.action=result.action||null; } }catch(e){}
     DUET={px:px, band:result.band, wrong:wrong, t0:performance.now()+120, perf:P};
     /* mother first, then daughter: 花花 already finished her flight while
        he spoke, so during the daughter's flight she simply waits at the
@@ -1979,17 +1985,6 @@ frame=function(){ _frame();
     g.save(); g.translate(PX(0,l)-30, PY(p.st,l,s)+16+Math.cos(beat*1.1)*2);
     g.drawImage(XHH,-w*0.46,-h*0.52,w,h); g.restore();
   }
-  if(!DUET) return;
-  const el=performance.now()-DUET.t0, done=DUET.perf.total;
-  if(el<done) return;
-  const u=Math.min(1,(el-done)/420);                 /* they settle into the nest */
-  const im=meetImg[DUET.wrong?3:DUET.band];
-  if(!im||!im.complete||!im.naturalWidth) return;
-  const l=lane(), s=span(), w=176, h=w*im.naturalHeight/im.naturalWidth;
-  const p=teacherPerf.at(1e9);
-  g.save(); g.globalAlpha=u;
-  g.drawImage(im, PX(1,l)-w*0.52, PY(p.st,l,s)-h*0.44-(1-u)*10, w, h);
-  g.restore();
 };
 
 /* ==================================================================
@@ -2002,11 +1997,21 @@ frame=function(){ _frame();
    released after every attempt and re-acquired per attempt, and the
    true sample rate is measured from the samples themselves.
    ================================================================== */
-let CAP_WALL=0, TRACK_INFO=null, LAST_MEASURED_SR=null, RATE_FIXED=false;
+let CAP_WALL=0, CAP_P0=0, TRACK_INFO=null, LAST_MEASURED_SR=null, RATE_FIXED=false;
 const _startCapture=startCapture;
 startCapture=async function(){
   const r=await _startCapture();
-  CAP_WALL=performance.now();
+  /* THE LESSON OF THE 40 kHz WAVs: the worklet takes ~300-400 ms to
+     deliver its first samples. Timing from "capture started" counts
+     that silence as recorded time and under-measures the rate on
+     EVERY attempt (his export: headers 39659-41941 for a 48000 mic,
+     playback 16% slow). The clock starts at the FIRST SAMPLE. */
+  CAP_WALL=0; CAP_P0=0;
+  const t0=performance.now();
+  const poll=setInterval(()=>{
+    if(pcmLen>256){ CAP_WALL=performance.now(); CAP_P0=pcmLen; clearInterval(poll); }
+    else if(performance.now()-t0>4000){ clearInterval(poll); }
+  },10);
   try{ const t=stream&&stream.getAudioTracks&&stream.getAudioTracks()[0];
        if(t) TRACK_INFO={label:t.label,settings:(t.getSettings?t.getSettings():null)}; }catch(e){}
   return r;
@@ -2044,6 +2049,7 @@ turn=async function(){
   DUET=null; hh("listen"); return countIn();
 };
 els.recBtn.onclick=turn;
+els.listenBtn.style.display="none";   /* Teacher already does this job */
 
 /* ---- lesson beats ------------------------------------------------ */
 const _openEx=openEx;
@@ -2063,12 +2069,16 @@ finish=function(){
      disagree by >4%, trust the samples for this attempt's WAV and
      tracking, and rebuild the context so the next attempt starts clean.
      This is the v4 first-launch bug, healed automatically. */
-  const wallS=(performance.now()-CAP_WALL)/1000;
-  if(wallS>0.3&&pcmLen>4000){
-    const meas=pcmLen/wallS; LAST_MEASURED_SR=Math.round(meas);
-    if(Math.abs(meas-recSR)/recSR>0.04){
-      recSR=Math.round(meas); RATE_FIXED=true;
-      try{ if(ctx) ctx.close(); }catch(e){} ctx=null;
+  if(CAP_WALL>0){
+    const wallS=(performance.now()-CAP_WALL)/1000, nS=pcmLen-CAP_P0;
+    if(wallS>0.6&&nS>8000){
+      const meas=nS/wallS; LAST_MEASURED_SR=Math.round(meas);
+      /* genuine mismatches are 44100-vs-48000 (8.8%) or worse; honest
+         measurement jitter is ~1%. 6% splits them safely. */
+      if(Math.abs(meas-recSR)/recSR>0.06){
+        recSR=Math.round(meas); RATE_FIXED=true;
+        try{ if(ctx) ctx.close(); }catch(e){} ctx=null;
+      }
     }
   }
   hh("think");                       /* the pause while she considers it */
