@@ -1611,7 +1611,7 @@ function devSheet(){
   sh.querySelector("#sSil").oninput=e=>{ CFG.silenceMs=+e.target.value; sh.querySelector("#vSil").textContent=CFG.silenceMs+" ms"; };
   sh.querySelector("#dlBtn").onclick=()=>{
     if(!capture.length) return toast("Nothing captured yet");
-    const doc={schema:"fa-calibration-1",tool:"flight-academy-lesson-v1",
+    const doc={schema:"fa-calibration-1",tool:"flight-academy-lesson-v1",device:(window.FA_DEVICE_INFO?window.FA_DEVICE_INFO():null),
       exported_utc:new Date().toISOString(),count:capture.length,attempts:capture};
     download(new Blob([JSON.stringify(doc)],{type:"application/json"}),
       "fa_calibration_"+new Date().toISOString().replace(/[:.]/g,"").slice(0,15)+".json");
@@ -1992,6 +1992,45 @@ frame=function(){ _frame();
   g.restore();
 };
 
+/* ==================================================================
+   AUDIO SESSION HYGIENE (the iPhone investigation)
+   The engine acquired the microphone ONCE and held it forever. On iOS
+   an open capture stream keeps the whole device in play-and-record
+   mode: the iPhone routes playback to the EARPIECE (that is the quiet
+   "My voice" on every version), the session stays renegotiated, and
+   first-launch sample-rate mismatches never heal. So: the mic is
+   released after every attempt and re-acquired per attempt, and the
+   true sample rate is measured from the samples themselves.
+   ================================================================== */
+let CAP_WALL=0, TRACK_INFO=null, LAST_MEASURED_SR=null, RATE_FIXED=false;
+const _startCapture=startCapture;
+startCapture=async function(){
+  const r=await _startCapture();
+  CAP_WALL=performance.now();
+  try{ const t=stream&&stream.getAudioTracks&&stream.getAudioTracks()[0];
+       if(t) TRACK_INFO={label:t.label,settings:(t.getSettings?t.getSettings():null)}; }catch(e){}
+  return r;
+};
+const _stopCapture=stopCapture;
+stopCapture=function(){
+  _stopCapture();
+  /* release the mic: the samples are already ours in pcm[], and letting
+     the session go returns playback to the speaker at full volume */
+  if(stream){ try{stream.getTracks().forEach(t=>t.stop());}catch(e){} stream=null; }
+};
+window.FA_DEVICE_INFO=function(){
+  return {ua:navigator.userAgent,
+          ctx_rate:(typeof ctx!=="undefined"&&ctx)?ctx.sampleRate:null,
+          rec_sr:(typeof recSR!=="undefined")?recSR:null,
+          measured_sr:LAST_MEASURED_SR, rate_autofix:RATE_FIXED,
+          track:TRACK_INFO,
+          wechat:/MicroMessenger/i.test(navigator.userAgent)};
+};
+if(/MicroMessenger/i.test(navigator.userAgent)||
+   !(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){
+  setTimeout(()=>toast("This browser can't record — please open in Safari / 请在 Safari 中打开"),900);
+}
+
 /* ---- two flights only ---------------------------------------------
    Tapping "Your turn" used to fly a full demonstration and then fly
    花花 AGAIN while the learner spoke. The one worth keeping is the one
@@ -2020,6 +2059,18 @@ countIn=async function(){ hh("listen"); DUET=null; return _countIn(); };
 const _finish=finish;
 finish=function(){
   if(stage!=="recording") return _finish();
+  /* the header rate is a claim; the samples are the truth. If they
+     disagree by >4%, trust the samples for this attempt's WAV and
+     tracking, and rebuild the context so the next attempt starts clean.
+     This is the v4 first-launch bug, healed automatically. */
+  const wallS=(performance.now()-CAP_WALL)/1000;
+  if(wallS>0.3&&pcmLen>4000){
+    const meas=pcmLen/wallS; LAST_MEASURED_SR=Math.round(meas);
+    if(Math.abs(meas-recSR)/recSR>0.04){
+      recSR=Math.round(meas); RATE_FIXED=true;
+      try{ if(ctx) ctx.close(); }catch(e){} ctx=null;
+    }
+  }
   hh("think");                       /* the pause while she considers it */
   const r=_finish();
   setTimeout(()=>{ if(!result) hh("listen"); },40);   /* couldn't hear enough */
