@@ -1614,7 +1614,7 @@ function devSheet(){
   sh.querySelector("#sSil").oninput=e=>{ CFG.silenceMs=+e.target.value; sh.querySelector("#vSil").textContent=CFG.silenceMs+" ms"; };
   sh.querySelector("#dlBtn").onclick=()=>{
     if(!capture.length) return toast("Nothing captured yet");
-    const doc={schema:"fa-calibration-1",tool:"flight-academy-live-test-v2",device:(window.FA_DEVICE_INFO?window.FA_DEVICE_INFO():null),drawn:(window.FA_LAST_DRAWN||null),live:(window.FA_LIVE_TRACES||null),
+    const doc={schema:"fa-calibration-1",tool:"flight-academy-live-test-v3",device:(window.FA_DEVICE_INFO?window.FA_DEVICE_INFO():null),drawn:(window.FA_LAST_DRAWN||null),live:(window.FA_LIVE_TRACES||null),
       exported_utc:new Date().toISOString(),count:capture.length,attempts:capture};
     download(new Blob([JSON.stringify(doc)],{type:"application/json"}),
       "fa_calibration_"+new Date().toISOString().replace(/[:.]/g,"").slice(0,15)+".json");
@@ -1661,7 +1661,7 @@ const HHFLY=new Image(); HHFLY.src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUg
 const SCALE={hero:1.0,excellent:.88,ok:.86,listen:.84,point:.86,think:.84};
 let hhState=null, hhT0=0;
 (function(){ const b=document.createElement("div");
-  b.textContent="live-test-v2";
+  b.textContent="live-test-v3";
   b.style.cssText="position:fixed;top:6px;right:8px;z-index:99;font:600 10px/1.6 -apple-system,sans-serif;"+
     "letter-spacing:.06em;color:rgba(62,74,99,.55);background:rgba(255,253,248,.8);"+
     "padding:1px 7px;border-radius:999px;border:1px solid rgba(62,74,99,.15);pointer-events:none";
@@ -2559,11 +2559,8 @@ frame=function(){ _frame();
       const px=PX(cu,l),py=PY(liveLineY(cu,nw),l,s);
       i?g.lineTo(px,py):g.moveTo(px,py); }
     g.stroke(); g.restore();
-    if(XHH.complete&&XHH.naturalWidth){
-      const w=46,h=w*XHH.naturalHeight/XHH.naturalWidth;
-      g.save(); g.translate(PX(1,l)+22, PY(taughtAt(1),l,s)+10+Math.cos(beat*1.1)*2);
-      g.drawImage(XHH,-w*0.46,-h*0.52,w,h); g.restore();
-    }
+    /* no extra daughter here: the verdict's hover anim already seats
+       both birds at the nest — drawing her again made three birds. */
   }
   /* before the flight both birds wait together on the left, under the
      nest that marks the finish. 小花花 has no flight of her own yet. */
