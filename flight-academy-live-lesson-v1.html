@@ -365,8 +365,11 @@ function character(l){ g.save();
   g.fillText(txt,W/2,l.charY); g.restore(); }
 function guide(l,s){
   /* 花花's route — always visible, always the same shape */
-  g.save(); g.strokeStyle="#1F6F78"; g.globalAlpha=.26; g.lineWidth=2.5;
-  g.setLineDash([6,8]); g.lineCap="round"; g.beginPath();
+  /* v8: COLOURS FIXED FOREVER — teacher BLACK, student GREEN. Colour
+     itself is reserved for the future pronunciation spectrum, so tone
+     judgment is carried by PATH SHAPE alone. */
+  g.save(); g.strokeStyle="#1A1A1A"; g.globalAlpha=.50; g.lineWidth=2.5;
+  g.lineCap="round"; g.beginPath();
   const r=teacherPerf; if(!r){ g.restore(); return; }
   let pen=false;
   for(let i=0;i<=80;i++){ const p=r.at(LEAD_MS+(i/80)*r.figMs);
@@ -1611,7 +1614,7 @@ function devSheet(){
   sh.querySelector("#sSil").oninput=e=>{ CFG.silenceMs=+e.target.value; sh.querySelector("#vSil").textContent=CFG.silenceMs+" ms"; };
   sh.querySelector("#dlBtn").onclick=()=>{
     if(!capture.length) return toast("Nothing captured yet");
-    const doc={schema:"fa-calibration-1",tool:"flight-academy-live-lesson-v6",device:(window.FA_DEVICE_INFO?window.FA_DEVICE_INFO():null),drawn:(window.FA_LAST_DRAWN||null),live:(window.FA_LIVE_TRACES||null),
+    const doc={schema:"fa-calibration-1",tool:"flight-academy-live-lesson-v8",device:(window.FA_DEVICE_INFO?window.FA_DEVICE_INFO():null),drawn:(window.FA_LAST_DRAWN||null),live:(window.FA_LIVE_TRACES||null),
       exported_utc:new Date().toISOString(),count:capture.length,attempts:capture};
     download(new Blob([JSON.stringify(doc)],{type:"application/json"}),
       "fa_calibration_"+new Date().toISOString().replace(/[:.]/g,"").slice(0,15)+".json");
@@ -1658,7 +1661,7 @@ const HHFLY=new Image(); HHFLY.src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUg
 const SCALE={hero:1.0,excellent:.88,ok:.86,listen:.84,point:.86,think:.84};
 let hhState=null, hhT0=0;
 (function(){ const b=document.createElement("div");
-  b.textContent="live-lesson-v6";
+  b.textContent="live-lesson-v8";
   b.style.cssText="position:fixed;top:6px;right:8px;z-index:99;font:600 10px/1.6 -apple-system,sans-serif;"+
     "letter-spacing:.06em;color:rgba(62,74,99,.55);background:rgba(255,253,248,.8);"+
     "padding:1px 7px;border-radius:999px;border:1px solid rgba(62,74,99,.15);pointer-events:none";
@@ -1947,7 +1950,7 @@ showResult=function(auto){
        if(window.FA_LIVE_TRACES.length>=6) window.FA_LIVE_TRACES.shift();
        window.FA_LIVE_TRACES.push({delay_ms:LIVE.delayMs,
          post_ms:+(LIVE.msSum/Math.max(1,LIVE.msN)).toFixed(2),
-         final_cls:LIVE.cls, target:tone,
+         final_cls:LIVE.cls, final_tier:LIVE.tier, target:tone,
          frames:LIVE.frames.map(f=>[+f[0].toFixed(3),+f[1].toFixed(1)]),
          log:LIVE.log, draw:LIVE.draw}); }catch(e){}
     const nestSt=teacherPerf.at(1e9).st;
@@ -2000,7 +2003,8 @@ showResult=function(auto){
    never disagree. Any failure here disables live and nothing else.
    ================================================================== */
 const LIVE={enabled:true, delayMs:160, ran:false, frames:[], trail:[], cls:null, onRun:0, offRun:0, reg:null, log:[], draw:[], lastLog:0, worker:null,
-            timer:null, beginWall:0, msSum:0, msN:0, med:null, interpY:null};
+            timer:null, beginWall:0, msSum:0, msN:0, med:null, interpY:null,
+            tier:"exact", tierRun:0, lastFrameWall:0};
 try{
   const wsrc=`(function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -2195,7 +2199,9 @@ self.onmessage=function(ev){
   LIVE.worker.onmessage=ev=>{
     const m=ev.data; if(!m.ok) return;
     const last=LIVE.frames.length?LIVE.frames[LIVE.frames.length-1][0]:-1;
-    for(const f of m.frames) if(f[0]>last+1e-6) LIVE.frames.push(f);
+    let got=false;
+    for(const f of m.frames) if(f[0]>last+1e-6){ LIVE.frames.push(f); got=true; }
+    if(got) LIVE.lastFrameWall=performance.now();
   };
 }catch(e){ LIVE.enabled=false; }
 
@@ -2212,7 +2218,7 @@ function liveTail(sec){
 const _begin=begin;
 begin=function(){
   const r=_begin();
-  LIVE.frames=[]; LIVE.trail=[]; LIVE.cls=null; LIVE.onRun=0; LIVE.offRun=0; LIVE.reg=null; LIVE.log=[]; LIVE.draw=[]; LIVE.lastLog=0; LIVE.interpY=null; LIVE.ran=false;
+  LIVE.frames=[]; LIVE.trail=[]; LIVE.cls=null; LIVE.onRun=0; LIVE.offRun=0; LIVE.reg=null; LIVE.log=[]; LIVE.draw=[]; LIVE.lastLog=0; LIVE.interpY=null; LIVE.ran=false; LIVE.tier="exact"; LIVE.tierRun=0; LIVE.lastFrameWall=0;
   LIVE.beginWall=performance.now();
   if(LIVE.enabled&&LIVE.worker){
     anim&&(anim.t0+=LIVE.delayMs);            /* the whole duet runs just behind the mic */
@@ -2264,54 +2270,138 @@ function liveClassify(){
   const pts=[];
   if(LIVE.frames.length){
     const t0=LIVE.frames[0][0];
+    var uNow=(LIVE.frames[LIVE.frames.length-1][0]-t0)*1000/fig;
     for(const f of LIVE.frames){
-      const u=(f[0]-t0)*1000/fig;
-      if(u>=0&&u<=1) pts.push([u,12*Math.log2(f[1]/a)]);
+      const u=Math.min(1,(f[0]-t0)*1000/fig);
+      if(u>=0) pts.push([u,12*Math.log2(f[1]/a)]);
     }
-  }
+  } else var uNow=0;
   if(pts.length<10) return {cls:0,ok:true,n:pts.length};
   const us=pts.map(q=>q[0]), uSpan=Math.max(...us)-Math.min(...us);
-  let best=0,bestR=1e9,tgtR=0;
+  let best=0,bestR=1e9,tgtR=0,tgtMed=0;
   for(const k of [1,2,3,4]){
     const S=toneShape(k),Sm=shapeMean(S);
     const rs=pts.map(q=>q[1]-(S(q[0])-Sm)).sort((x,y)=>x-y);
     const med=rs[rs.length>>1];
     const abs=pts.map(q=>Math.abs(q[1]-(med+(S(q[0])-Sm)))).sort((x,y)=>x-y);
     const r=abs[abs.length>>1];
-    if(k===tone) tgtR=r;
+    if(k===tone){ tgtR=r; tgtMed=med; }
     if(r<bestR){bestR=r;best=k;}
   }
-  /* going red is an accusation — it needs evidence that spans the
-     flight, and a clear margin. 0.7 st separates his flat-T1 case
-     (margin ~1.0-1.5) from honest wobble (~0.2-0.4). */
-  const off=(best!==tone)&&(tgtR-bestR>=0.7)&&(uSpan>=0.35);
-  return {cls:off?best:tone,ok:!off,n:pts.length,tgtR,bestR,uSpan};
+  /* calling a WRONG TONE is an accusation — it needs evidence that
+     spans the flight and a clear margin (v7, validated on his voice).
+     v8: the target's OWN flaw presets are hypotheses too — a flight
+     the target's library explains (shallow dip, late start, missing
+     recovery) is a flawed target tone, never a foreign one. Same
+     median measure, same margin. */
+  let libFit=1e9;
+  if(best!==tone){
+    const ids={1:["drift","sag"],2:["shallow","flatEnd"],
+               3:["shallow","noRec"],4:["shallow","late"]}[tone]||[];
+    for(const id of ids){
+      const P=q=>presetAt(id,q), Pm=(()=>{let a=0;for(let j=0;j<12;j++)a+=P(j/11);return a/12;})();
+      const rs2=pts.map(q=>q[1]-(P(q[0])-Pm)).sort((x,y)=>x-y);
+      const md=rs2[rs2.length>>1];
+      const ab=pts.map(q=>Math.abs(q[1]-(md+(P(q[0])-Pm)))).sort((x,y)=>x-y);
+      libFit=Math.min(libFit,ab[ab.length>>1]);
+    }
+  }
+  /* a flaw preset claims the flight only if it GENUINELY fits (<0.7 st);
+     a half-fit over a prefix never shelters a foreign tone */
+  const off=(best!==tone)&&(tgtR-bestR>=0.9)&&(libFit>=0.7)&&(uSpan>=0.35)&&(uNow<0.6);
+  return {cls:off?best:tone,ok:!off,n:pts.length,tgtR,bestR,uSpan,uNow,
+          pts,tgtMed,frozen:(uNow>=0.6)};
+}
+/* ==================================================================
+   PRESET-PATH LIBRARY (v8) — one clean judgment line per tier per tone.
+   The learner sees ONLY these lines; raw measurement (humps, hitches,
+   wobble) lives in telemetry. Every preset is built FROM the taught
+   curve itself, so each is a recognizable version of the intended tone.
+   Tiers: exact (Excellent — green covers black, one line), good
+   (narrow corridor), then the tone's characteristic flaw:
+     T1 drift / sag; T2 shallowRise / flatEnd;
+     T3 shallowDip / noRecovery;  T4 lateStart / underCommitted.
+   Wrong tone = the produced tone's clean shape (still GREEN — shape
+   carries the message, colour is reserved). Insufficient evidence =
+   the trail fades where hearing stopped.
+   ================================================================== */
+function taughtMean(){let s=0;for(let j=0;j<12;j++)s+=taughtAt(j/11);return s/12;}
+function taughtMinU(){let mu=0,mv=1e9;for(let j=0;j<=24;j++){const v=taughtAt(j/24);if(v<mv){mv=v;mu=j/24;}}return mu;}
+function presetAt(tier,u){
+  const c=Math.max(0,Math.min(1,u)), Tm=taughtMean();
+  const scale=(k)=>Tm+k*(taughtAt(c)-Tm);
+  switch(tier){
+    case "good":     return scale(0.86);
+    case "drift":    return taughtAt(c)-2.4*c;                     /* T1 */
+    case "sag":      return taughtAt(c)-2.0*Math.sin(Math.PI*c);   /* T1 */
+    case "shallow":  return scale(0.55);                    /* T2/T3/T4 */
+    case "flatEnd":  return c<0.55?taughtAt(c):taughtAt(0.55)+0.5*(c-0.55); /* T2 */
+    case "noRec":  { const m=taughtMinU();
+                     return c<m?taughtAt(c):taughtAt(m)+0.4*(c-m); }        /* T3 */
+    case "late":   { return c<0.45?taughtAt(0):taughtAt((c-0.45)/0.55); }   /* T4 */
+    default:         return taughtAt(c);                        /* exact */
+  }
+}
+function liveTier(cl){
+  /* judgment tier for the TARGET tone: fit the certified evidence
+     against the tone's OWN preset library — exact, good, and its two
+     characteristic flaws — register solved per hypothesis. The flaw
+     presets are the hypotheses, so a shallow dip reads as SHALLOW-DIP,
+     not as an accusation of a different tone. p75 of |deviation| is
+     the fit measure here (median hides end-loaded flaws like a
+     missing recovery); the WRONG-TONE decision above keeps its own
+     validated median measure untouched. */
+  if(cl.tgtR==null||cl.n<10||!cl.pts) return LIVE.tier;
+  const tiers={1:["exact","good","drift","sag"],
+               2:["exact","good","shallow","flatEnd"],
+               3:["exact","good","shallow","noRec"],
+               4:["exact","good","shallow","late"]}[tone]||["exact"];
+  const pts=cl.pts;
+  const fit=(id)=>{
+    const P=u=>presetAt(id,u), Pm=(()=>{let a=0;for(let j=0;j<12;j++)a+=P(j/11);return a/12;})();
+    const rs=pts.map(q=>q[1]-(P(q[0])-Pm)).sort((x,y)=>x-y);
+    const med=rs[rs.length>>1];
+    const abs=pts.map(q=>Math.abs(q[1]-(med+(P(q[0])-Pm)))).sort((x,y)=>x-y);
+    return abs[Math.min(abs.length-1,Math.floor(0.75*abs.length))];
+  };
+  let bestId="exact",bestF=fit("exact");
+  for(const id of tiers.slice(1)){ const f=fit(id); if(f<bestF-1e-9){bestF=f;bestId=id;} }
+  /* prefer the kinder reading: a flaw only claims the flight if it
+     beats EXACT clearly; near-exact fits collapse upward */
+  const fx=fit("exact");
+  if(bestId!=="exact"&&fx-bestF<0.40&&bestF<0.9) bestId=(fx<0.9?"exact":"good");
+  if(bestId==="exact"&&fx>=0.85) bestId="good";
+  return bestId;
 }
 function liveY(u){
   const cl=liveClassify();
   const nowMs=performance.now();
+  if(cl.n>=8&&!cl.frozen){
+    if(cl.ok){ LIVE.offRun=0; if(LIVE.cls!==tone&&++LIVE.onRun>=6) LIVE.cls=tone; }
+    else { LIVE.onRun=0; if(LIVE.cls!==cl.cls&&++LIVE.offRun>=6) LIVE.cls=cl.cls; }
+  }
+  /* tier hysteresis: 5 consecutive agreeing evaluations to change,
+     frozen near the finish line — she does not change her mind there */
+  if(cl.n>=10&&cl.uNow<0.92&&(LIVE.cls==null||LIVE.cls===tone)){
+    const t=liveTier(cl);
+    if(t!==LIVE.tier){ if(++LIVE.tierRun>=4){ LIVE.tier=t; LIVE.tierRun=0; } }
+    else LIVE.tierRun=0;
+  }
   if(nowMs-LIVE.lastLog>100){ LIVE.lastLog=nowMs;
     LIVE.log.push({u:+u.toFixed(3),cls:cl.cls,ok:cl.ok?1:0,n:cl.n,
       tgtR:cl.tgtR!=null?+cl.tgtR.toFixed(2):null,
       bestR:cl.bestR!=null?+cl.bestR.toFixed(2):null,
       uSpan:cl.uSpan!=null?+cl.uSpan.toFixed(2):null,
-      state:LIVE.cls}); }
-  if(cl.n>=8){
-    if(cl.ok){ LIVE.offRun=0; if(LIVE.cls!==tone&&++LIVE.onRun>=6) LIVE.cls=tone; }
-    else { LIVE.onRun=0; if(LIVE.cls!==cl.cls&&++LIVE.offRun>=6) LIVE.cls=cl.cls; }
-  }
+      tier:LIVE.tier, state:LIVE.cls}); }
   const k=(LIVE.cls==null)?tone:LIVE.cls;
-  const S=toneShape(k),Sm=shapeMean(S);
-  const Tt=taughtAt(Math.max(0,Math.min(1,u)));
-  const Tm2=(function(){let s=0;for(let j=0;j<12;j++)s+=taughtAt(j/11);return s/12;})();
-  /* the flown path: target corridor when on track; the produced tone's
-     clean shape, placed in the same lane, when off */
-  const goal=(k===tone)?Tt:(S(Math.max(0,Math.min(1,u)))-Sm+Tm2);
-  /* preset paths, period — his directive. The daughter flies the
-     chosen path exactly; only the transition between paths is eased. */
-  const y=goal;
-  LIVE.interpY=(LIVE.interpY==null)?y:LIVE.interpY+(y-LIVE.interpY)*0.30;
-  if(LIVE.draw.length<400) LIVE.draw.push([+u.toFixed(3),+((k===tone)?1:0),+goal.toFixed(2),+LIVE.interpY.toFixed(2)]);
+  const cu=Math.max(0,Math.min(1,u));
+  let goal;
+  if(k===tone){ goal=presetAt(LIVE.tier,cu); }
+  else { const S=toneShape(k),Sm=shapeMean(S);
+         goal=S(cu)-Sm+taughtMean(); }        /* the produced tone's clean shape */
+  const rate=(LIVE.interpY!=null&&Math.abs(goal-LIVE.interpY)>2.0)?0.30:0.55;
+  LIVE.interpY=(LIVE.interpY==null)?goal:LIVE.interpY+(goal-LIVE.interpY)*rate;
+  if(LIVE.draw.length<400) LIVE.draw.push([+u.toFixed(3),(k===tone)?LIVE.tier:("t"+k),+goal.toFixed(2),+LIVE.interpY.toFixed(2)]);
   return LIVE.interpY;
 }
 
@@ -2338,16 +2428,20 @@ frame=function(){ _frame();
       const tp=anim.teacher.at(Math.min(el,anim.teacher.total));
       const u=tp.x, y=liveY(u);
       const l=lane(), s=span();
-      const onTrack=(LIVE.cls==null||LIVE.cls===tone);
+      /* v8: the student's line is ALWAYS GREEN and drawn OVER the
+         teacher's black line — on Excellent the two coincide and the
+         learner sees ONE GREEN LINE, which is itself the signal.
+         Insufficient evidence never goes silent or red: the trail
+         simply FADES where 花花 stopped hearing enough. */
+      const fresh=(performance.now()-LIVE.lastFrameWall)<700?1:0;
       if(tp.stage==="figure"&&(!LIVE.trail.length||u>LIVE.trail[LIVE.trail.length-1][0]+1e-4))
-        LIVE.trail.push([u,y,onTrack?1:0]);
-      if(LIVE.trail.length>1){        /* the student's line: green on track,
-                                         warning colour once the evidence says
-                                         a different tone is being flown */
-        g.save(); g.lineWidth=4; g.lineJoin="round"; g.globalAlpha=0.9;
+        LIVE.trail.push([u,y,fresh]);
+      if(LIVE.trail.length>1){
+        g.save(); g.lineWidth=4.5; g.lineJoin="round"; g.lineCap="round";
+        g.strokeStyle="#2E6B4F";
         let run=[LIVE.trail[0]];
         const stroke=(seg)=>{ if(seg.length<2) return;
-          g.strokeStyle=seg[seg.length-1][2]?"#2E6B4F":"#B3402F"; g.beginPath();
+          g.globalAlpha=seg[seg.length-1][2]?0.92:0.30; g.beginPath();
           seg.forEach((q,k)=>{const px=PX(q[0],l),py=PY(q[1],l,s);k?g.lineTo(px,py):g.moveTo(px,py);});
           g.stroke(); };
         for(let k=1;k<LIVE.trail.length;k++){
