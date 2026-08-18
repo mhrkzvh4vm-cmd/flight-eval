@@ -1614,7 +1614,7 @@ function devSheet(){
   sh.querySelector("#sSil").oninput=e=>{ CFG.silenceMs=+e.target.value; sh.querySelector("#vSil").textContent=CFG.silenceMs+" ms"; };
   sh.querySelector("#dlBtn").onclick=()=>{
     if(!capture.length) return toast("Nothing captured yet");
-    const doc={schema:"fa-calibration-1",tool:"flight-academy-live-lesson-v8",device:(window.FA_DEVICE_INFO?window.FA_DEVICE_INFO():null),drawn:(window.FA_LAST_DRAWN||null),live:(window.FA_LIVE_TRACES||null),
+    const doc={schema:"fa-calibration-1",tool:"flight-academy-live-lesson-v9",device:(window.FA_DEVICE_INFO?window.FA_DEVICE_INFO():null),drawn:(window.FA_LAST_DRAWN||null),live:(window.FA_LIVE_TRACES||null),
       exported_utc:new Date().toISOString(),count:capture.length,attempts:capture};
     download(new Blob([JSON.stringify(doc)],{type:"application/json"}),
       "fa_calibration_"+new Date().toISOString().replace(/[:.]/g,"").slice(0,15)+".json");
@@ -1661,7 +1661,7 @@ const HHFLY=new Image(); HHFLY.src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUg
 const SCALE={hero:1.0,excellent:.88,ok:.86,listen:.84,point:.86,think:.84};
 let hhState=null, hhT0=0;
 (function(){ const b=document.createElement("div");
-  b.textContent="live-lesson-v8";
+  b.textContent="live-lesson-v9";
   b.style.cssText="position:fixed;top:6px;right:8px;z-index:99;font:600 10px/1.6 -apple-system,sans-serif;"+
     "letter-spacing:.06em;color:rgba(62,74,99,.55);background:rgba(255,253,248,.8);"+
     "padding:1px 7px;border-radius:999px;border:1px solid rgba(62,74,99,.15);pointer-events:none";
@@ -1950,7 +1950,7 @@ showResult=function(auto){
        if(window.FA_LIVE_TRACES.length>=6) window.FA_LIVE_TRACES.shift();
        window.FA_LIVE_TRACES.push({delay_ms:LIVE.delayMs,
          post_ms:+(LIVE.msSum/Math.max(1,LIVE.msN)).toFixed(2),
-         final_cls:LIVE.cls, final_tier:LIVE.tier, target:tone,
+         final_cls:LIVE.cls, final_path:LIVE.path, target:tone,
          frames:LIVE.frames.map(f=>[+f[0].toFixed(3),+f[1].toFixed(1)]),
          log:LIVE.log, draw:LIVE.draw}); }catch(e){}
     const nestSt=teacherPerf.at(1e9).st;
@@ -2004,7 +2004,7 @@ showResult=function(auto){
    ================================================================== */
 const LIVE={enabled:true, delayMs:160, ran:false, frames:[], trail:[], cls:null, onRun:0, offRun:0, reg:null, log:[], draw:[], lastLog:0, worker:null,
             timer:null, beginWall:0, msSum:0, msN:0, med:null, interpY:null,
-            tier:"exact", tierRun:0, lastFrameWall:0};
+            path:"exact", morphFrom:null, morphT0:0, lastFrameWall:0};
 try{
   const wsrc=`(function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -2218,7 +2218,7 @@ function liveTail(sec){
 const _begin=begin;
 begin=function(){
   const r=_begin();
-  LIVE.frames=[]; LIVE.trail=[]; LIVE.cls=null; LIVE.onRun=0; LIVE.offRun=0; LIVE.reg=null; LIVE.log=[]; LIVE.draw=[]; LIVE.lastLog=0; LIVE.interpY=null; LIVE.ran=false; LIVE.tier="exact"; LIVE.tierRun=0; LIVE.lastFrameWall=0;
+  LIVE.frames=[]; LIVE.trail=[]; LIVE.cls=null; LIVE.onRun=0; LIVE.offRun=0; LIVE.reg=null; LIVE.log=[]; LIVE.draw=[]; LIVE.lastLog=0; LIVE.interpY=null; LIVE.ran=false; LIVE.path="exact"; LIVE.morphFrom=null; LIVE.morphT0=0; LIVE.lastFrameWall=0;
   LIVE.beginWall=performance.now();
   if(LIVE.enabled&&LIVE.worker){
     anim&&(anim.t0+=LIVE.delayMs);            /* the whole duet runs just behind the mic */
@@ -2331,10 +2331,12 @@ function presetAt(tier,u){
   const c=Math.max(0,Math.min(1,u)), Tm=taughtMean();
   const scale=(k)=>Tm+k*(taughtAt(c)-Tm);
   switch(tier){
-    case "good":     return scale(0.86);
+    case "good":   { const v=scale(0.86);      /* the nest never moves */
+                     return v+(taughtAt(1)-(Tm+0.86*(taughtAt(1)-Tm))); }
     case "drift":    return taughtAt(c)-2.4*c;                     /* T1 */
     case "sag":      return taughtAt(c)-2.0*Math.sin(Math.PI*c);   /* T1 */
-    case "shallow":  return scale(0.55);                    /* T2/T3/T4 */
+    case "shallow":{ const v=scale(0.55);      /* the nest never moves */
+                     return v+(taughtAt(1)-(Tm+0.55*(taughtAt(1)-Tm))); } /* T2/T3/T4 */
     case "flatEnd":  return c<0.55?taughtAt(c):taughtAt(0.55)+0.5*(c-0.55); /* T2 */
     case "noRec":  { const m=taughtMinU();
                      return c<m?taughtAt(c):taughtAt(m)+0.4*(c-m); }        /* T3 */
@@ -2342,67 +2344,55 @@ function presetAt(tier,u){
     default:         return taughtAt(c);                        /* exact */
   }
 }
-function liveTier(cl){
-  /* judgment tier for the TARGET tone: fit the certified evidence
-     against the tone's OWN preset library — exact, good, and its two
-     characteristic flaws — register solved per hypothesis. The flaw
-     presets are the hypotheses, so a shallow dip reads as SHALLOW-DIP,
-     not as an accusation of a different tone. p75 of |deviation| is
-     the fit measure here (median hides end-loaded flaws like a
-     missing recovery); the WRONG-TONE decision above keeps its own
-     validated median measure untouched. */
-  if(cl.tgtR==null||cl.n<10||!cl.pts) return LIVE.tier;
-  const tiers={1:["exact","good","drift","sag"],
-               2:["exact","good","shallow","flatEnd"],
-               3:["exact","good","shallow","noRec"],
-               4:["exact","good","shallow","late"]}[tone]||["exact"];
-  const pts=cl.pts;
-  const fit=(id)=>{
-    const P=u=>presetAt(id,u), Pm=(()=>{let a=0;for(let j=0;j<12;j++)a+=P(j/11);return a/12;})();
-    const rs=pts.map(q=>q[1]-(P(q[0])-Pm)).sort((x,y)=>x-y);
-    const med=rs[rs.length>>1];
-    const abs=pts.map(q=>Math.abs(q[1]-(med+(P(q[0])-Pm)))).sort((x,y)=>x-y);
-    return abs[Math.min(abs.length-1,Math.floor(0.75*abs.length))];
-  };
-  let bestId="exact",bestF=fit("exact");
-  for(const id of tiers.slice(1)){ const f=fit(id); if(f<bestF-1e-9){bestF=f;bestId=id;} }
-  /* prefer the kinder reading: a flaw only claims the flight if it
-     beats EXACT clearly; near-exact fits collapse upward */
-  const fx=fit("exact");
-  if(bestId!=="exact"&&fx-bestF<0.40&&bestF<0.9) bestId=(fx<0.9?"exact":"good");
-  if(bestId==="exact"&&fx>=0.85) bestId="good";
-  return bestId;
-}
 function liveY(u){
+  /* v9: ON TRACK IS THE EXACT CORRIDOR, PERIOD. The live layer knows
+     only two validated things — "this is the target tone" and "this is
+     a different tone" (v7 accusation, untouched). JUDGMENT TIERS ARE
+     THE VERDICT'S JOB: his v8 export proved a live tier guess calls an
+     honest Excellent "no recovery" (tail frames pile at u=1, and any
+     real recovery timing drifts off the canonical curve), so live and
+     final disagreed — the one-source-of-truth doctrine forbids a
+     second judge. The preset library remains for the accusation veto
+     and for verdict-time settling. */
   const cl=liveClassify();
   const nowMs=performance.now();
   if(cl.n>=8&&!cl.frozen){
     if(cl.ok){ LIVE.offRun=0; if(LIVE.cls!==tone&&++LIVE.onRun>=6) LIVE.cls=tone; }
     else { LIVE.onRun=0; if(LIVE.cls!==cl.cls&&++LIVE.offRun>=6) LIVE.cls=cl.cls; }
   }
-  /* tier hysteresis: 5 consecutive agreeing evaluations to change,
-     frozen near the finish line — she does not change her mind there */
-  if(cl.n>=10&&cl.uNow<0.92&&(LIVE.cls==null||LIVE.cls===tone)){
-    const t=liveTier(cl);
-    if(t!==LIVE.tier){ if(++LIVE.tierRun>=4){ LIVE.tier=t; LIVE.tierRun=0; } }
-    else LIVE.tierRun=0;
-  }
   if(nowMs-LIVE.lastLog>100){ LIVE.lastLog=nowMs;
     LIVE.log.push({u:+u.toFixed(3),cls:cl.cls,ok:cl.ok?1:0,n:cl.n,
       tgtR:cl.tgtR!=null?+cl.tgtR.toFixed(2):null,
       bestR:cl.bestR!=null?+cl.bestR.toFixed(2):null,
       uSpan:cl.uSpan!=null?+cl.uSpan.toFixed(2):null,
-      tier:LIVE.tier, state:LIVE.cls}); }
+      state:LIVE.cls}); }
   const k=(LIVE.cls==null)?tone:LIVE.cls;
+  const path=(k===tone)?"exact":("t"+k);
+  if(path!==LIVE.path){ LIVE.morphFrom=LIVE.path; LIVE.morphT0=nowMs; LIVE.path=path; }
   const cu=Math.max(0,Math.min(1,u));
-  let goal;
-  if(k===tone){ goal=presetAt(LIVE.tier,cu); }
-  else { const S=toneShape(k),Sm=shapeMean(S);
-         goal=S(cu)-Sm+taughtMean(); }        /* the produced tone's clean shape */
+  const goal=livePathY(LIVE.path,cu,nowMs);
   const rate=(LIVE.interpY!=null&&Math.abs(goal-LIVE.interpY)>2.0)?0.30:0.55;
   LIVE.interpY=(LIVE.interpY==null)?goal:LIVE.interpY+(goal-LIVE.interpY)*rate;
-  if(LIVE.draw.length<400) LIVE.draw.push([+u.toFixed(3),(k===tone)?LIVE.tier:("t"+k),+goal.toFixed(2),+LIVE.interpY.toFixed(2)]);
+  if(LIVE.draw.length<400) LIVE.draw.push([+u.toFixed(3),LIVE.path,+goal.toFixed(2),+LIVE.interpY.toFixed(2)]);
   return LIVE.interpY;
+}
+/* the y of a named path — "exact" is the taught corridor itself, so an
+   on-track flight ENDS EXACTLY AT THE NEST; "t<k>" is that tone's clean
+   shape mean-aligned into the lane. During a path change the WHOLE LINE
+   morphs smoothly from the old path to the new over ~280 ms. */
+function livePathY(path,cu,nowMs){
+  const raw=(p)=>{
+    if(p==="exact"||p==null) return taughtAt(cu);
+    const k=+p.slice(1)||tone, S=toneShape(k),Sm=shapeMean(S);
+    return S(cu)-Sm+taughtMean();
+  };
+  let y=raw(path);
+  if(LIVE.morphFrom!=null){
+    const a=Math.min(1,(nowMs-LIVE.morphT0)/280);
+    if(a>=1) LIVE.morphFrom=null;
+    else y=raw(LIVE.morphFrom)*(1-a)+y*a;
+  }
+  return y;
 }
 
 /* interpretation: corridor-anchored, confidence-weighted, vertical only */
@@ -2428,24 +2418,31 @@ frame=function(){ _frame();
       const tp=anim.teacher.at(Math.min(el,anim.teacher.total));
       const u=tp.x, y=liveY(u);
       const l=lane(), s=span();
-      /* v8: the student's line is ALWAYS GREEN and drawn OVER the
-         teacher's black line — on Excellent the two coincide and the
-         learner sees ONE GREEN LINE, which is itself the signal.
-         Insufficient evidence never goes silent or red: the trail
-         simply FADES where 花花 stopped hearing enough. */
+      /* v9: THE LINE IS THE PRESET ITSELF. The trail records only how
+         far the flight has covered (and where hearing was fresh); the
+         green line is the CURRENT PATH re-drawn over that span every
+         frame — never the bird's flown history. Identical performances
+         therefore draw identical lines, a path change morphs the whole
+         line, and an on-track line ends exactly at the nest. Always
+         GREEN, drawn OVER the teacher's black — one green line IS the
+         Excellent signal. Insufficiency fades the line, never colours
+         it. */
       const fresh=(performance.now()-LIVE.lastFrameWall)<700?1:0;
       if(tp.stage==="figure"&&(!LIVE.trail.length||u>LIVE.trail[LIVE.trail.length-1][0]+1e-4))
-        LIVE.trail.push([u,y,fresh]);
+        LIVE.trail.push([u,fresh]);
       if(LIVE.trail.length>1){
+        const nw=performance.now();
         g.save(); g.lineWidth=4.5; g.lineJoin="round"; g.lineCap="round";
         g.strokeStyle="#2E6B4F";
         let run=[LIVE.trail[0]];
         const stroke=(seg)=>{ if(seg.length<2) return;
-          g.globalAlpha=seg[seg.length-1][2]?0.92:0.30; g.beginPath();
-          seg.forEach((q,k)=>{const px=PX(q[0],l),py=PY(q[1],l,s);k?g.lineTo(px,py):g.moveTo(px,py);});
+          g.globalAlpha=seg[seg.length-1][1]?0.92:0.30; g.beginPath();
+          seg.forEach((q,k)=>{const cu=Math.max(0,Math.min(1,q[0]));
+            const px=PX(cu,l),py=PY(livePathY(LIVE.path,cu,nw),l,s);
+            k?g.lineTo(px,py):g.moveTo(px,py);});
           g.stroke(); };
         for(let k=1;k<LIVE.trail.length;k++){
-          if(LIVE.trail[k][2]!==run[run.length-1][2]){ run.push(LIVE.trail[k]); stroke(run); run=[LIVE.trail[k]]; }
+          if(LIVE.trail[k][1]!==run[run.length-1][1]){ run.push(LIVE.trail[k]); stroke(run); run=[LIVE.trail[k]]; }
           else run.push(LIVE.trail[k]); }
         stroke(run); g.restore();
       }
