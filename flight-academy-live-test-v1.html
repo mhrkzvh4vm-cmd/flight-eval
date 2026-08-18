@@ -1614,7 +1614,7 @@ function devSheet(){
   sh.querySelector("#sSil").oninput=e=>{ CFG.silenceMs=+e.target.value; sh.querySelector("#vSil").textContent=CFG.silenceMs+" ms"; };
   sh.querySelector("#dlBtn").onclick=()=>{
     if(!capture.length) return toast("Nothing captured yet");
-    const doc={schema:"fa-calibration-1",tool:"flight-academy-live-test-v1",device:(window.FA_DEVICE_INFO?window.FA_DEVICE_INFO():null),drawn:(window.FA_LAST_DRAWN||null),live:(window.FA_LIVE_TRACES||null),
+    const doc={schema:"fa-calibration-1",tool:"flight-academy-live-test-v2",device:(window.FA_DEVICE_INFO?window.FA_DEVICE_INFO():null),drawn:(window.FA_LAST_DRAWN||null),live:(window.FA_LIVE_TRACES||null),
       exported_utc:new Date().toISOString(),count:capture.length,attempts:capture};
     download(new Blob([JSON.stringify(doc)],{type:"application/json"}),
       "fa_calibration_"+new Date().toISOString().replace(/[:.]/g,"").slice(0,15)+".json");
@@ -1661,7 +1661,7 @@ const HHFLY=new Image(); HHFLY.src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUg
 const SCALE={hero:1.0,excellent:.88,ok:.86,listen:.84,point:.86,think:.84};
 let hhState=null, hhT0=0;
 (function(){ const b=document.createElement("div");
-  b.textContent="live-test-v1";
+  b.textContent="live-test-v2";
   b.style.cssText="position:fixed;top:6px;right:8px;z-index:99;font:600 10px/1.6 -apple-system,sans-serif;"+
     "letter-spacing:.06em;color:rgba(62,74,99,.55);background:rgba(255,253,248,.8);"+
     "padding:1px 7px;border-radius:999px;border:1px solid rgba(62,74,99,.15);pointer-events:none";
@@ -1944,6 +1944,21 @@ showResult=function(auto){
   if(!result) return;
   FLOWN=true;
   if(auto&&LIVE.ran){
+    /* TEST v2: the final line is the OLD renderer's output — the same
+       learnerPerf that drew the pre-live version he loves: his voice,
+       band-blended toward the taught curve, lifted to the nest. The
+       live line settles into it. */
+    try{
+      const wrong=!!(result.action&&result.best&&result.best!==tone);
+      const figMs2=Math.max(420,(EX.flightMs||600));
+      const craw=(typeof drawContour==="function"?drawContour():null)||
+                 ((typeof LAST_A!=="undefined"&&LAST_A)?LAST_A.c:null);
+      if(craw){
+        const P=learnerPerf(craw,figMs2,result.band,wrong);
+        LIVE.finalAt=(cu)=>P.at(LEAD_MS+Math.max(0,Math.min(1,cu))*P.figMs).st;
+        LIVE.settleT0=performance.now();
+      }
+    }catch(e){}
     /* the live flight WAS flight two — no automatic third. The birds
        settle at the nest; "My flight" replays on request. */
     try{ window.FA_LIVE_TRACES=window.FA_LIVE_TRACES||[];
@@ -2218,7 +2233,7 @@ function liveTail(sec){
 const _begin=begin;
 begin=function(){
   const r=_begin();
-  LIVE.frames=[]; LIVE.trail=[]; LIVE.cls=null; LIVE.onRun=0; LIVE.offRun=0; LIVE.reg=null; LIVE.log=[]; LIVE.draw=[]; LIVE.lastLog=0; LIVE.interpY=null; LIVE.ran=false; LIVE.path="exact"; LIVE.morphFrom=null; LIVE.morphT0=0; LIVE.lastFrameWall=0;
+  LIVE.frames=[]; LIVE.trail=[]; LIVE.cls=null; LIVE.onRun=0; LIVE.offRun=0; LIVE.reg=null; LIVE.log=[]; LIVE.draw=[]; LIVE.lastLog=0; LIVE.interpY=null; LIVE.ran=false; LIVE.path="exact"; LIVE.morphFrom=null; LIVE.morphT0=0; LIVE.lastFrameWall=0; LIVE.vN=0; LIVE.vSt=null; LIVE.vMaxU=0; LIVE.finalAt=null; LIVE.settleT0=0;
   LIVE.beginWall=performance.now();
   if(LIVE.enabled&&LIVE.worker){
     anim&&(anim.t0+=LIVE.delayMs);            /* the whole duet runs just behind the mic */
@@ -2376,6 +2391,66 @@ function liveY(u){
   if(LIVE.draw.length<400) LIVE.draw.push([+u.toFixed(3),LIVE.path,+goal.toFixed(2),+LIVE.interpY.toFixed(2)]);
   return LIVE.interpY;
 }
+/* TEST v2 — THE LINE IS HIS VOICE, INTERPRETED (the pre-live rules,
+   made causal). Smoothed, register-aligned to the taught curve, and
+   BLENDED toward it while the flight is on track — the old BLEND idea
+   with a provisional weight until the verdict. A wrong tone keeps its
+   true shape, only centered where the exercise lives (the old wrong
+   rule). Certified gaps (the creaky T3 trough) are bridged by hold +
+   smoothing + blend. At the verdict the line settles into the OLD
+   RENDERER'S EXACT OUTPUT (learnerPerf: band blend + nest lift). */
+function liveVoiceY(cu){
+  const fr=LIVE.frames;
+  if(!fr.length) return taughtAt(Math.max(0,Math.min(1,cu)));
+  const a=currentAnchorHz()||105;
+  const fig=(LIVE.figMs||((anim&&anim.teacher)?anim.teacher.figMs:800));
+  if(LIVE.vN!==fr.length){
+    LIVE.vN=fr.length;
+    const t0=fr[0][0], B=48;
+    const sum=new Array(B+1).fill(0), n=new Array(B+1).fill(0);
+    /* hygiene the old renderer got from its offline contour: trim the
+       onset glide (first 60 ms of voice) and gate octave-class jumps
+       (>6 st between neighbouring samples are held, not drawn) */
+    let prev=null;
+    for(const f of fr){
+      if((f[0]-t0)<0.06) continue;
+      const v=12*Math.log2(f[1]/a);
+      if(prev!=null&&Math.abs(v-prev)>6) continue;
+      prev=v;
+      const u=Math.max(0,Math.min(1,(f[0]-t0)*1000/fig));
+      const i=Math.round(u*B); sum[i]+=v; n[i]++;
+    }
+    if(!n.some(x=>x)){ for(const f of fr){ const u=Math.max(0,Math.min(1,(f[0]-t0)*1000/fig));
+      const i=Math.round(u*B); sum[i]+=12*Math.log2(f[1]/a); n[i]++; } }
+    const st=new Array(B+1).fill(null);
+    let last=null, maxI=0, first=null;
+    for(let i=0;i<=B;i++){ if(n[i]){ last=sum[i]/n[i]; maxI=i; if(first==null) first=last; } st[i]=last; }
+    for(let i=0;i<=B;i++) if(st[i]==null) st[i]=first==null?0:first;
+    for(let r=0;r<2;r++){ const c=st.slice();
+      for(let i=1;i<B;i++) st[i]=(c[i-1]+c[i]+c[i+1])/3; }
+    let sv=0,tt=0,cnt=0;
+    for(let i=0;i<=maxI;i++){ sv+=st[i]; tt+=taughtAt(i/B); cnt++; }
+    const off=cnt?(sv-tt)/cnt:0;
+    LIVE.vSt=st.map(v=>v-off); LIVE.vMaxU=maxI/B;
+  }
+  const st=LIVE.vSt, B=st.length-1;
+  const uu=Math.max(0,Math.min(cu,LIVE.vMaxU!=null?Math.max(LIVE.vMaxU,0.02):1,1));
+  const t=uu*B, i=Math.floor(t), f=t-i;
+  const raw=st[i]+((st[Math.min(B,i+1)]-st[i])*f);
+  const wrong=(LIVE.cls!=null&&LIVE.cls!==tone);
+  const w=wrong?0:0.70;              /* provisional blend until the verdict */
+  return w*taughtAt(Math.max(0,Math.min(1,cu)))+(1-w)*raw;
+}
+/* the settled line after the verdict: morphs from the live voice line
+   into the old renderer's output over 400 ms, then holds. */
+function liveLineY(cu,nw){
+  if(LIVE.finalAt){
+    const m=Math.min(1,(nw-LIVE.settleT0)/400);
+    if(m>=1) return LIVE.finalAt(cu);
+    return liveVoiceY(cu)*(1-m)+LIVE.finalAt(cu)*m;
+  }
+  return liveVoiceY(cu);
+}
 /* the y of a named path — "exact" is the taught corridor itself, so an
    on-track flight ENDS EXACTLY AT THE NEST; "t<k>" is that tone's clean
    shape mean-aligned into the lane. During a path change the WHOLE LINE
@@ -2432,7 +2507,8 @@ frame=function(){ _frame();
       LIVE.figMs=anim.teacher.figMs;
       const SEP_MS=240;
       const du=Math.max(0,Math.min(1,(el-LEAD_MS-SEP_MS)/anim.teacher.figMs));
-      const u=du, y=liveY(du);
+      liveY(du);                         /* classification + telemetry */
+      const u=du, y=liveVoiceY(du);
       const l=lane(), s=span();
       /* v9: THE LINE IS THE PRESET ITSELF. The trail records only how
          far the flight has covered (and where hearing was fresh); the
@@ -2454,7 +2530,7 @@ frame=function(){ _frame();
         const stroke=(seg)=>{ if(seg.length<2) return;
           g.globalAlpha=seg[seg.length-1][1]?0.92:0.30; g.beginPath();
           seg.forEach((q,k)=>{const cu=Math.max(0,Math.min(1,q[0]));
-            const px=PX(cu,l),py=PY(livePathY(LIVE.path,cu,nw),l,s);
+            const px=PX(cu,l),py=PY(liveLineY(cu,nw),l,s);
             k?g.lineTo(px,py):g.moveTo(px,py);});
           g.stroke(); };
         for(let k=1;k<LIVE.trail.length;k++){
@@ -2480,7 +2556,7 @@ frame=function(){ _frame();
     g.strokeStyle="#2E6B4F"; g.globalAlpha=0.92; g.beginPath();
     const N2=160;
     for(let i=0;i<=N2;i++){ const cu=i/N2;
-      const px=PX(cu,l),py=PY(livePathY(LIVE.path,cu,nw),l,s);
+      const px=PX(cu,l),py=PY(liveLineY(cu,nw),l,s);
       i?g.lineTo(px,py):g.moveTo(px,py); }
     g.stroke(); g.restore();
     if(XHH.complete&&XHH.naturalWidth){
