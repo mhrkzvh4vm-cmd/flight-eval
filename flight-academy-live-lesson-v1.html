@@ -1614,7 +1614,7 @@ function devSheet(){
   sh.querySelector("#sSil").oninput=e=>{ CFG.silenceMs=+e.target.value; sh.querySelector("#vSil").textContent=CFG.silenceMs+" ms"; };
   sh.querySelector("#dlBtn").onclick=()=>{
     if(!capture.length) return toast("Nothing captured yet");
-    const doc={schema:"fa-calibration-1",tool:"flight-academy-live-lesson-v10",device:(window.FA_DEVICE_INFO?window.FA_DEVICE_INFO():null),drawn:(window.FA_LAST_DRAWN||null),live:(window.FA_LIVE_TRACES||null),
+    const doc={schema:"fa-calibration-1",tool:"flight-academy-live-lesson-v11",device:(window.FA_DEVICE_INFO?window.FA_DEVICE_INFO():null),drawn:(window.FA_LAST_DRAWN||null),live:(window.FA_LIVE_TRACES||null),
       exported_utc:new Date().toISOString(),count:capture.length,attempts:capture};
     download(new Blob([JSON.stringify(doc)],{type:"application/json"}),
       "fa_calibration_"+new Date().toISOString().replace(/[:.]/g,"").slice(0,15)+".json");
@@ -1661,7 +1661,7 @@ const HHFLY=new Image(); HHFLY.src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUg
 const SCALE={hero:1.0,excellent:.88,ok:.86,listen:.84,point:.86,think:.84};
 let hhState=null, hhT0=0;
 (function(){ const b=document.createElement("div");
-  b.textContent="live-lesson-v10";
+  b.textContent="live-lesson-v11";
   b.style.cssText="position:fixed;top:6px;right:8px;z-index:99;font:600 10px/1.6 -apple-system,sans-serif;"+
     "letter-spacing:.06em;color:rgba(62,74,99,.55);background:rgba(255,253,248,.8);"+
     "padding:1px 7px;border-radius:999px;border:1px solid rgba(62,74,99,.15);pointer-events:none";
@@ -1966,7 +1966,9 @@ showResult=function(auto){
       LIVE.morphDur=400; LIVE.path=finalPath; LIVE.settled=true; settled=true;
     }
     try{ window.FA_LIVE_TRACES=window.FA_LIVE_TRACES||[];
-       if(window.FA_LIVE_TRACES.length>=6) window.FA_LIVE_TRACES.shift();
+       /* v11: 12 attempts kept (was 6) — his diving-T2 attempts were evicted
+        before export, leaving the onset bug undiagnosable. Evidence first. */
+       if(window.FA_LIVE_TRACES.length>=12) window.FA_LIVE_TRACES.shift();
        window.FA_LIVE_TRACES.push({delay_ms:LIVE.delayMs,
          post_ms:+(LIVE.msSum/Math.max(1,LIVE.msN)).toFixed(2),
          final_cls:LIVE.cls, final_path:LIVE.path, verdict_path:settled?LIVE.path:null,
