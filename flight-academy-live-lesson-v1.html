@@ -1614,7 +1614,7 @@ function devSheet(){
   sh.querySelector("#sSil").oninput=e=>{ CFG.silenceMs=+e.target.value; sh.querySelector("#vSil").textContent=CFG.silenceMs+" ms"; };
   sh.querySelector("#dlBtn").onclick=()=>{
     if(!capture.length) return toast("Nothing captured yet");
-    const doc={schema:"fa-calibration-1",tool:"flight-academy-live-lesson-v9",device:(window.FA_DEVICE_INFO?window.FA_DEVICE_INFO():null),drawn:(window.FA_LAST_DRAWN||null),live:(window.FA_LIVE_TRACES||null),
+    const doc={schema:"fa-calibration-1",tool:"flight-academy-live-lesson-v10",device:(window.FA_DEVICE_INFO?window.FA_DEVICE_INFO():null),drawn:(window.FA_LAST_DRAWN||null),live:(window.FA_LIVE_TRACES||null),
       exported_utc:new Date().toISOString(),count:capture.length,attempts:capture};
     download(new Blob([JSON.stringify(doc)],{type:"application/json"}),
       "fa_calibration_"+new Date().toISOString().replace(/[:.]/g,"").slice(0,15)+".json");
@@ -1661,7 +1661,7 @@ const HHFLY=new Image(); HHFLY.src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUg
 const SCALE={hero:1.0,excellent:.88,ok:.86,listen:.84,point:.86,think:.84};
 let hhState=null, hhT0=0;
 (function(){ const b=document.createElement("div");
-  b.textContent="live-lesson-v9";
+  b.textContent="live-lesson-v10";
   b.style.cssText="position:fixed;top:6px;right:8px;z-index:99;font:600 10px/1.6 -apple-system,sans-serif;"+
     "letter-spacing:.06em;color:rgba(62,74,99,.55);background:rgba(255,253,248,.8);"+
     "padding:1px 7px;border-radius:999px;border:1px solid rgba(62,74,99,.15);pointer-events:none";
@@ -1944,13 +1944,33 @@ showResult=function(auto){
   if(!result) return;
   FLOWN=true;
   if(auto&&LIVE.ran){
-    /* the live flight WAS flight two — no automatic third. The birds
-       settle at the nest; "My flight" replays on request. */
+    /* v10: THE VERDICT SELECTS THE LINE. The frozen judge picks the
+       final preset (wrong tone -> the produced tone's shape; Excellent
+       -> exact; Good -> the close line; lower bands -> the diagnosed
+       characteristic flaw). The live line settles into it over 400 ms.
+       An insufficient attempt gets no settled claim — the partial
+       faded line stays. */
+    let finalPath=LIVE.path, settled=false;
+    if(result.score!=null&&result.band!=null){
+      const wrong=!!(result.action&&result.best&&result.best!==tone);
+      const bn=(BANDS[result.band]&&BANDS[result.band].name)||"";
+      if(wrong) finalPath="t"+result.best;
+      else if(bn==="Excellent") finalPath="exact";
+      else if(bn==="Good") finalPath="good";
+      else {
+        const craw=(typeof drawContour==="function"?drawContour():null)||
+                   ((typeof LAST_A!=="undefined"&&LAST_A)?LAST_A.c:null);
+        finalPath=diagnoseFlaw(craw)||"good";
+      }
+      LIVE.morphFrom=LIVE.path; LIVE.morphT0=performance.now();
+      LIVE.morphDur=400; LIVE.path=finalPath; LIVE.settled=true; settled=true;
+    }
     try{ window.FA_LIVE_TRACES=window.FA_LIVE_TRACES||[];
        if(window.FA_LIVE_TRACES.length>=6) window.FA_LIVE_TRACES.shift();
        window.FA_LIVE_TRACES.push({delay_ms:LIVE.delayMs,
          post_ms:+(LIVE.msSum/Math.max(1,LIVE.msN)).toFixed(2),
-         final_cls:LIVE.cls, final_path:LIVE.path, target:tone,
+         final_cls:LIVE.cls, final_path:LIVE.path, verdict_path:settled?LIVE.path:null,
+         target:tone,
          frames:LIVE.frames.map(f=>[+f[0].toFixed(3),+f[1].toFixed(1)]),
          log:LIVE.log, draw:LIVE.draw}); }catch(e){}
     const nestSt=teacherPerf.at(1e9).st;
@@ -1958,8 +1978,19 @@ showResult=function(auto){
                  swing:2.5,endSt:nestSt,
                  at:()=>({x:1,st:nestSt,vy:0,stage:"idle",u:1,link:false,ink:false,
                           spread:0.8,tuck:0,effort:0.3})};
-    anim={teacher:hover,child:{perf:hover,lag:0,gap:0,color:BANDS[result.band].color},
-          t0:performance.now(),holdMs:1e9};
+    /* natural endpoint vs the nest decides the choreography: a line
+       that honestly ends at the nest seats both birds there; a miss
+       arms the MEETUP — she rests at her ending, then flies up. */
+    const endSt=settled?(function(){const keep=LIVE.morphFrom;LIVE.morphFrom=null;
+        const v=livePathY(LIVE.path,1,performance.now());LIVE.morphFrom=keep;return v;})():nestSt;
+    if(settled&&Math.abs(endSt-nestSt)>0.3){
+      anim={teacher:hover,child:null,t0:performance.now(),holdMs:1e9};
+      LIVE.meet={t0:performance.now()+1300, dur:900};
+    } else {
+      anim={teacher:hover,child:{perf:hover,lag:0,gap:0,color:BANDS[result.band].color},
+            t0:performance.now(),holdMs:1e9};
+      LIVE.meet=null;
+    }
     return;
   }
   if((lastVT&&lastVT.frames)||(LAST_A&&LAST_A.c)){
@@ -2218,7 +2249,7 @@ function liveTail(sec){
 const _begin=begin;
 begin=function(){
   const r=_begin();
-  LIVE.frames=[]; LIVE.trail=[]; LIVE.cls=null; LIVE.onRun=0; LIVE.offRun=0; LIVE.reg=null; LIVE.log=[]; LIVE.draw=[]; LIVE.lastLog=0; LIVE.interpY=null; LIVE.ran=false; LIVE.path="exact"; LIVE.morphFrom=null; LIVE.morphT0=0; LIVE.lastFrameWall=0;
+  LIVE.frames=[]; LIVE.trail=[]; LIVE.cls=null; LIVE.onRun=0; LIVE.offRun=0; LIVE.reg=null; LIVE.log=[]; LIVE.draw=[]; LIVE.lastLog=0; LIVE.interpY=null; LIVE.ran=false; LIVE.path="exact"; LIVE.morphFrom=null; LIVE.morphT0=0; LIVE.morphDur=280; LIVE.lastFrameWall=0; LIVE.settled=false; LIVE.meet=null; LIVE.figMs=0;
   LIVE.beginWall=performance.now();
   if(LIVE.enabled&&LIVE.worker){
     anim&&(anim.t0+=LIVE.delayMs);            /* the whole duet runs just behind the mic */
@@ -2376,23 +2407,82 @@ function liveY(u){
   if(LIVE.draw.length<400) LIVE.draw.push([+u.toFixed(3),LIVE.path,+goal.toFixed(2),+LIVE.interpY.toFixed(2)]);
   return LIVE.interpY;
 }
-/* the y of a named path — "exact" is the taught corridor itself, so an
-   on-track flight ENDS EXACTLY AT THE NEST; "t<k>" is that tone's clean
-   shape mean-aligned into the lane. During a path change the WHOLE LINE
-   morphs smoothly from the old path to the new over ~280 ms. */
+/* THE PRESET VOCABULARY (v10) — every learner-facing line, natural
+   endpoints throughout (nothing is bent to force a nest landing; the
+   meetup animation reunites the birds afterwards when the endpoint
+   honestly missed):
+     exact                — the taught line itself (Excellent)
+     good                 — noticeably close: the taught shape eased 15%
+                            toward its own chord, pinned at both ends
+     drift / sag          — tone 1 flaws
+     shallow2 / stall     — tone 2 flaws
+     shallow3 / norec     — tone 3 flaws
+     under / late         — tone 4 flaws
+     t<k>                 — a different tone's clean shape in the lane
+   Selected LIVE only between exact and t<k> (the validated classifier);
+   the flaw and good lines are chosen by THE VERDICT. A path change
+   morphs the whole line (LIVE.morphDur ms). */
 function livePathY(path,cu,nowMs){
   const raw=(p)=>{
-    if(p==="exact"||p==null) return taughtAt(cu);
-    const k=+p.slice(1)||tone, S=toneShape(k),Sm=shapeMean(S);
-    return S(cu)-Sm+taughtMean();
+    const T=taughtAt, c=Math.max(0,Math.min(1,cu));
+    switch(p){
+      case null: case "exact": return T(c);
+      case "good": { const L=T(0)+(T(1)-T(0))*c;      /* chord-eased */
+                     return L+0.85*(T(c)-L); }
+      case "drift":    return T(c)-2.4*c;                     /* T1 */
+      case "sag":      return T(c)-2.0*Math.sin(Math.PI*c);   /* T1 */
+      case "shallow2": return T(0)+0.55*(T(c)-T(0));          /* T2 */
+      case "stall":    return c<0.55?T(c):T(0.55)+0.5*(c-0.55); /* T2 */
+      case "shallow3": { const m=taughtMinU(), top=T(0);      /* T3 */
+                     const mn=top+0.55*(T(m)-top);   /* dipped less,
+                        recovered into the normal ending */
+                     return c<m? top+0.55*(T(c)-top)
+                               : mn+((T(1)-mn)/((T(1)-T(m))||1e-6))*(T(c)-T(m)); }
+      case "norec":  { const m=taughtMinU();                  /* T3 */
+                     return c<m?T(c):T(m)+0.4*(c-m); }
+      case "under":    return T(0)+0.55*(T(c)-T(0));          /* T4 */
+      case "late":     return c<0.45?T(0):T((c-0.45)/0.55);   /* T4 */
+      default: { const k=+String(p).slice(1)||tone,
+                 S=toneShape(k),Sm=shapeMean(S);
+                 return S(c)-Sm+taughtMean(); }
+    }
   };
   let y=raw(path);
   if(LIVE.morphFrom!=null){
-    const a=Math.min(1,(nowMs-LIVE.morphT0)/280);
-    if(a>=1) LIVE.morphFrom=null;
+    const a=Math.min(1,(nowMs-LIVE.morphT0)/(LIVE.morphDur||280));
+    if(a>=1){ LIVE.morphFrom=null; LIVE.morphDur=280; }
     else y=raw(LIVE.morphFrom)*(1-a)+y*a;
   }
   return y;
+}
+/* DIAGNOSIS-ONLY features — select which flaw line to SHOW; the frozen
+   score is never touched. T1/T3 use the judge's own feature logic;
+   T2 stall and T4 late-start need measures the judge does not keep. */
+function diagnoseFlaw(cArr){
+  try{
+    const c=(cArr||[]).map(v=>typeof v==="number"?v:(v&&v.st!=null?v.st:(Array.isArray(v)?v[1]:NaN)))
+                      .filter(v=>isFinite(v));
+    const N=c.length; if(N<8) return null;
+    const mean=(a,b)=>{let s2=0,n=0;
+      for(let i=Math.round(a*(N-1));i<=Math.round(b*(N-1));i++){s2+=c[i];n++;}
+      return s2/Math.max(1,n);};
+    const early=mean(0,0.15), late=mean(0.85,1);
+    let mn=1e9,mi=0; for(let i=0;i<N;i++) if(c[i]<mn){mn=c[i];mi=i;}
+    const recovery=late-mn, net=late-early;
+    const lastClimb=mean(0.9,1)-mean(0.68,0.8);
+    /* onset scaled to the measured fall — a fixed threshold makes a
+       shallow fall masquerade as a late start */
+    const drop=Math.max(0.8,0.25*(early-mn));
+    let onset=1; for(let i=0;i<N;i++) if(c[i]<early-drop){onset=i/(N-1);break;}
+    if(tone===1) return net<-1.2?"drift":"sag";
+    if(tone===2){ const expRise=taughtAt(1)-taughtAt(0);
+      return (net>0.45*expRise&&lastClimb<0.08*expRise)?"stall":"shallow2"; }
+    if(tone===3){ let tmn=1e9; for(let j=0;j<=24;j++) tmn=Math.min(tmn,taughtAt(j/24));
+      const expRec=taughtAt(1)-tmn;
+      return recovery<0.4*expRec?"norec":"shallow3"; }
+    if(tone===4) return onset>0.4?"late":"under";
+    return null;
+  }catch(e){ return null; }
 }
 
 /* interpretation: corridor-anchored, confidence-weighted, vertical only */
@@ -2416,7 +2506,13 @@ frame=function(){ _frame();
     const el=performance.now()-anim.t0;
     if(el>0){
       const tp=anim.teacher.at(Math.min(el,anim.teacher.total));
-      const u=tp.x, y=liveY(u);
+      /* 小花花 flies the same line a DISCERNIBLE DISTANCE behind 花花
+         (the stuck-birds fix): her own clock runs 240 ms behind, the
+         line is painted at HER beak and completes during the tail. */
+      LIVE.figMs=anim.teacher.figMs;
+      const SEP_MS=240;
+      const du=Math.max(0,Math.min(1,(el-LEAD_MS-SEP_MS)/anim.teacher.figMs));
+      const u=du, y=liveY(du);
       const l=lane(), s=span();
       /* v9: THE LINE IS THE PRESET ITSELF. The trail records only how
          far the flight has covered (and where hearing was fresh); the
@@ -2428,7 +2524,7 @@ frame=function(){ _frame();
          Excellent signal. Insufficiency fades the line, never colours
          it. */
       const fresh=(performance.now()-LIVE.lastFrameWall)<700?1:0;
-      if(tp.stage==="figure"&&(!LIVE.trail.length||u>LIVE.trail[LIVE.trail.length-1][0]+1e-4))
+      if(u>0&&(!LIVE.trail.length||u>LIVE.trail[LIVE.trail.length-1][0]+1e-4))
         LIVE.trail.push([u,fresh]);
       if(LIVE.trail.length>1){
         const nw=performance.now();
@@ -2453,9 +2549,54 @@ frame=function(){ _frame();
       }
     }
   }
+  /* v10: THE GREEN LINE STAYS. After the verdict the settled line is
+     drawn for the whole result. A judged flight shows its final preset
+     over the full span; an INSUFFICIENT flight keeps only the partial,
+     faded line — the one no-line-claim case. If the line's natural
+     endpoint missed the nest, 小花花 first rests at her honest ending,
+     then flies up to her mother — the MEETUP. The line never moves. */
+  if(stage==="done"&&LIVE.ran&&LIVE.trail.length>1){
+    const l=lane(), s=span(), nw=performance.now();
+    g.save(); g.lineWidth=4.5; g.lineJoin="round"; g.lineCap="round";
+    g.strokeStyle="#2E6B4F";
+    if(LIVE.settled){
+      g.globalAlpha=0.92; g.beginPath();
+      const N2=160;
+      for(let i=0;i<=N2;i++){ const cu=i/N2;
+        const px=PX(cu,l),py=PY(livePathY(LIVE.path,cu,nw),l,s);
+        i?g.lineTo(px,py):g.moveTo(px,py); }
+      g.stroke();
+    } else {
+      /* insufficient: partial line, faded where hearing stopped */
+      let run=[LIVE.trail[0]];
+      const stroke=(seg)=>{ if(seg.length<2) return;
+        g.globalAlpha=seg[seg.length-1][1]?0.55:0.22; g.beginPath();
+        seg.forEach((q,k)=>{const cu=Math.max(0,Math.min(1,q[0]));
+          const px=PX(cu,l),py=PY(livePathY(LIVE.path,cu,nw),l,s);
+          k?g.lineTo(px,py):g.moveTo(px,py);});
+        g.stroke(); };
+      for(let k=1;k<LIVE.trail.length;k++){
+        if(LIVE.trail[k][1]!==run[run.length-1][1]){ run.push(LIVE.trail[k]); stroke(run); run=[LIVE.trail[k]]; }
+        else run.push(LIVE.trail[k]); }
+      stroke(run);
+    }
+    g.restore();
+    /* the meetup: she holds at her honest ending, then joins her mother */
+    if(LIVE.meet&&XHH.complete&&XHH.naturalWidth){
+      const nestSt=taughtAt(1);
+      const endY=livePathY(LIVE.path,1,nw);
+      const a=Math.max(0,Math.min(1,(nw-LIVE.meet.t0)/LIVE.meet.dur));
+      const e=a*a*(3-2*a);
+      const sx=PX(1,l)+14+8*e, arc=Math.sin(Math.PI*e)*18;
+      const sy=PY(endY+(nestSt-endY)*e,l,s)-arc;
+      const w2=46,h2=w2*XHH.naturalHeight/XHH.naturalWidth;
+      g.save(); g.translate(sx, sy+Math.cos(beat*1.2)*2);
+      g.drawImage(XHH,-w2*0.46,-h2*0.52,w2,h2); g.restore();
+    }
+  }
   /* before the flight both birds wait together on the left, under the
      nest that marks the finish. 小花花 has no flight of her own yet. */
-  if(!DUET&&stage!=="menu"&&stage!=="recording"&&!(anim&&anim.child)&&XHH.complete&&XHH.naturalWidth){
+  if(!DUET&&stage!=="menu"&&stage!=="recording"&&!(stage==="done"&&LIVE.ran)&&!(anim&&anim.child)&&XHH.complete&&XHH.naturalWidth){
     const l=lane(), s=span(), p=teacherPerf.at(0);
     const w=46, h=w*XHH.naturalHeight/XHH.naturalWidth;
     g.save(); g.translate(PX(0,l)-30, PY(p.st,l,s)+16+Math.cos(beat*1.1)*2);
