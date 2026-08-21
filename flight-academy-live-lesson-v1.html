@@ -1419,7 +1419,7 @@ function finish(){
         else if(!rx.info.t2shape && jj.score<70 && t3xLongGapRetry(fr)){ lastT3X.retry=true;
           perSyl.push({tone:want,score:0,fall:0,starved:true}); continue; }
       }
-      perSyl.push({tone:want,score:jj.score,fall:jj.f.early-jj.f.late,c:an.c});
+      perSyl.push({tone:want,score:jj.score,fall:jj.f.early-jj.f.late,best:jj.best,c:an.c});
     }
   }
   /* on a pair, fall back to the whole utterance rather than reporting
@@ -1483,7 +1483,7 @@ function finish(){
   }
   sylSpansForExport=sylSpans.map(v=>({t0:Math.round(v.t0),t1:Math.round(v.t1)}));
   result={score:sc,band:bandOf(sc),action:act,best:j.best,syllables:syls,tier:tier,
-          perSyl:perSyl.map(p=>({tone:p.tone,score:p.score,fall:+p.fall.toFixed(1)})),
+          perSyl:perSyl.map(p=>({tone:p.tone,score:p.score,fall:+p.fall.toFixed(1),best:p.best})),
           neutralDrop:neutral?neutral.dropSt:null};
   els.hint.textContent=HINT[tone];
   lastDebug="score "+j.score+"  band "+BANDS[result.band].name
@@ -1507,6 +1507,27 @@ function finish(){
 }
 els.recBtn.onclick=turn;
 
+function pairDiagnosis(){
+  /* v15, from his pilot report: pairs answered only right/wrong while the
+     frozen judge's per-syllable finding was thrown away. Surface it — in
+     花花's voice: praise what flew well, then teach ONE adjustment. The
+     judge already decided; nothing here re-judges. */
+  if(!result||!(result.syllables>1)||!result.perSyl||result.perSyl.length<2||result.action) return null;
+  const N={1:"first tone",2:"second tone",3:"third tone",4:"fourth tone"};
+  const FLEW={1:"level",2:"climbing",3:"dipping and rising",4:"diving"};
+  const DOES={1:"stays high and level the whole way",2:"climbs from low to high",
+              3:"dips low, then lifts back up",4:"dives down firmly"};
+  const chars=(EX.ch||"").split("");
+  const marked=result.perSyl.map((p,i)=>({p,i}));
+  const weak=marked.filter(x=>x.p.score<70).sort((a,b)=>a.p.score-b.p.score);
+  if(!weak.length) return null;
+  const w=weak[0], ch=chars[w.i]||("syllable "+(w.i+1));
+  const good=marked.filter(x=>x.p.score>=70);
+  const lead=good.length?((chars[good[0].i]||"")+" — nicely flown. "):"";
+  return (w.p.best&&w.p.best!==w.p.tone)
+    ? lead+ch+" flew "+FLEW[w.p.best]+" — a "+N[w.p.tone]+" "+DOES[w.p.tone]+"."
+    : lead+ch+" was close — a "+N[w.p.tone]+" "+DOES[w.p.tone]+".";
+}
 function showResult(auto){
   if(!result) return;
   const b=BANDS[result.band];
@@ -1521,7 +1542,7 @@ function showResult(auto){
   ? ("Say all of it — "+EX.ch+".")
   : result.action
     ? (COACH[tone+"-"+result.best] || "That sounded like a different tone.")
-    : MSG[tone][result.band];
+    : (pairDiagnosis() || MSG[tone][result.band]);
   els.verdict.classList.add("show");
   const seed=(result.band+1)*1.7+tone;
   const child=choreograph(route,result.band,seed);
@@ -1619,7 +1640,7 @@ function devSheet(){
   sh.querySelector("#sSil").oninput=e=>{ CFG.silenceMs=+e.target.value; sh.querySelector("#vSil").textContent=CFG.silenceMs+" ms"; };
   sh.querySelector("#dlBtn").onclick=()=>{
     if(!capture.length) return toast("Nothing captured yet");
-    const doc={schema:"fa-calibration-1",tool:"flight-academy-live-lesson-v14",device:(window.FA_DEVICE_INFO?window.FA_DEVICE_INFO():null),drawn:(window.FA_LAST_DRAWN||null),live:(window.FA_LIVE_TRACES||null),
+    const doc={schema:"fa-calibration-1",tool:"flight-academy-live-lesson-v15",device:(window.FA_DEVICE_INFO?window.FA_DEVICE_INFO():null),drawn:(window.FA_LAST_DRAWN||null),live:(window.FA_LIVE_TRACES||null),
       exported_utc:new Date().toISOString(),count:capture.length,attempts:capture};
     download(new Blob([JSON.stringify(doc)],{type:"application/json"}),
       "fa_calibration_"+new Date().toISOString().replace(/[:.]/g,"").slice(0,15)+".json");
@@ -1666,7 +1687,7 @@ const HHFLY=new Image(); HHFLY.src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUg
 const SCALE={hero:1.0,excellent:.88,ok:.86,listen:.84,point:.86,think:.84};
 let hhState=null, hhT0=0;
 (function(){ const b=document.createElement("div");
-  b.textContent="live-lesson-v14";
+  b.textContent="live-lesson-v15";
   b.style.cssText="position:fixed;top:6px;right:8px;z-index:99;font:600 10px/1.6 -apple-system,sans-serif;"+
     "letter-spacing:.06em;color:rgba(62,74,99,.55);background:rgba(255,253,248,.8);"+
     "padding:1px 7px;border-radius:999px;border:1px solid rgba(62,74,99,.15);pointer-events:none";
