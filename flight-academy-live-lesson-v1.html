@@ -1852,6 +1852,18 @@ function pairShape(u){
   }
   return 0;
 }
+function pairInkAt(u){
+  /* v12.1: HIS RULE — the word's line BREAKS between the syllables. The
+     reset is the pedagogy: two fourth tones means climb back to the top
+     in silence and dive again ( \  \ ), never one connected sweep. The
+     bird still flies through the gap; the ink lifts. Single tones and
+     non-break links are untouched. */
+  if(!PAIRS[id]||!route||!route.segs||route.segs.length<2) return true;
+  const gs=route.segs, total=gs.reduce((a,g)=>a+g.ms,0);
+  let t=Math.max(0,Math.min(0.9999,u))*total;
+  for(const g of gs){ if(t<=g.ms) return g.kind!=="break"; t-=g.ms; }
+  return true;
+}
 function taughtAt(u){
   if(PAIRS[id]&&route&&route.segs&&route.segs.length>1) return pairShape(u);
   const p=ideal||[[0,0],[1,0]];
@@ -1899,7 +1911,7 @@ function learnerPerf(craw, figMs, band, wrong){
         const u=(ms-LEAD_MS)/figMs, d=0.012;
         const vy=(H(u+d)-H(u-d))/(2*d*figMs/1000);
         const up=Math.max(0,vy), dn=Math.max(0,-vy);
-        return {x:u,st:H(u),vy:vy,stage:"figure",u:u,link:false,ink:true,
+        return {x:u,st:H(u),vy:vy,stage:"figure",u:u,link:false,ink:pairInkAt(u),
                 spread:Math.min(1.3,0.75+up*0.045),tuck:Math.min(1,dn*0.055),effort:0.35+up*0.05}; }
       const u=(ms-LEAD_MS-figMs)/TAIL_MS, e=1-Math.pow(1-u,3);
       return {x:1,st:endSt+0.6*Math.sin(Math.min(1,u*1.4)*Math.PI),vy:0,stage:"tail",u:u,
@@ -2587,9 +2599,11 @@ frame=function(){ _frame();
         let run=[LIVE.trail[0]];
         const stroke=(seg)=>{ if(seg.length<2) return;
           g.globalAlpha=seg[seg.length-1][1]?0.92:0.30; g.beginPath();
-          seg.forEach((q,k)=>{const cu=Math.max(0,Math.min(1,q[0]));
+          let pen=false;
+          seg.forEach(q=>{const cu=Math.max(0,Math.min(1,q[0]));
+            if(!pairInkAt(cu)){ pen=false; return; }
             const px=PX(cu,l),py=PY(livePathY(LIVE.path,cu,nw),l,s);
-            k?g.lineTo(px,py):g.moveTo(px,py);});
+            pen?g.lineTo(px,py):g.moveTo(px,py); pen=true;});
           g.stroke(); };
         for(let k=1;k<LIVE.trail.length;k++){
           if(LIVE.trail[k][1]!==run[run.length-1][1]){ run.push(LIVE.trail[k]); stroke(run); run=[LIVE.trail[k]]; }
@@ -2615,19 +2629,22 @@ frame=function(){ _frame();
     g.strokeStyle="#2E6B4F";
     if(LIVE.settled){
       g.globalAlpha=0.92; g.beginPath();
-      const N2=160;
+      const N2=160; let pen=false;
       for(let i=0;i<=N2;i++){ const cu=i/N2;
+        if(!pairInkAt(cu)){ pen=false; continue; }
         const px=PX(cu,l),py=PY(livePathY(LIVE.path,cu,nw),l,s);
-        i?g.lineTo(px,py):g.moveTo(px,py); }
+        pen?g.lineTo(px,py):g.moveTo(px,py); pen=true; }
       g.stroke();
     } else {
       /* insufficient: partial line, faded where hearing stopped */
       let run=[LIVE.trail[0]];
       const stroke=(seg)=>{ if(seg.length<2) return;
         g.globalAlpha=seg[seg.length-1][1]?0.55:0.22; g.beginPath();
-        seg.forEach((q,k)=>{const cu=Math.max(0,Math.min(1,q[0]));
+        let pen=false;
+        seg.forEach(q=>{const cu=Math.max(0,Math.min(1,q[0]));
+          if(!pairInkAt(cu)){ pen=false; return; }
           const px=PX(cu,l),py=PY(livePathY(LIVE.path,cu,nw),l,s);
-          k?g.lineTo(px,py):g.moveTo(px,py);});
+          pen?g.lineTo(px,py):g.moveTo(px,py); pen=true;});
         g.stroke(); };
       for(let k=1;k<LIVE.trail.length;k++){
         if(LIVE.trail[k][1]!==run[run.length-1][1]){ run.push(LIVE.trail[k]); stroke(run); run=[LIVE.trail[k]]; }
