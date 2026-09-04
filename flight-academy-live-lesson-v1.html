@@ -4,13 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <title>Flight Academy</title>
+<!-- Noto Serif SC, the app's Chinese face. A frame does not inherit fonts from
+     the page around it, so the engine has to ask for the webfont itself; the
+     browser cache is shared with the app, so this is normally already warm.
+     If it fails to load, every stack below falls through to the system CJK
+     face exactly as before. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&display=swap">
 <style>
 :root{--ink:#2B3A42;--ink-soft:#6C8390;--paper:#FBF7F1;
  --t1:#1F6F78;--t2:#3E7D4E;--t3:#C77B2E;--t4:#B4483F;--rec:#C2483F;--r:18px;}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{margin:0;padding:0;height:100%;overflow:hidden;overscroll-behavior:none;
  background:var(--paper);color:var(--ink);
- font-family:"Avenir Next","Segoe UI",-apple-system,BlinkMacSystemFont,sans-serif;
+ font-family:"Avenir Next","Segoe UI","Noto Serif SC",-apple-system,BlinkMacSystemFont,sans-serif;
  -webkit-user-select:none;user-select:none;-webkit-text-size-adjust:100%;}
 body{height:100dvh;display:flex;flex-direction:column;
  padding:calc(env(safe-area-inset-top) + 8px) calc(env(safe-area-inset-right) + 14px) calc(env(safe-area-inset-bottom) + 10px) calc(env(safe-area-inset-left) + 14px);gap:10px;}
@@ -360,7 +368,7 @@ function ridge(base,amp,fill,ph){ g.beginPath(); g.moveTo(0,H);
 function character(l){ g.save();
   const txt=EX.ch, n=txt.length;
   const size=n>1?l.charSize*0.72:l.charSize;
-  g.font='600 '+size+'px "PingFang SC","Hiragino Sans GB","Songti SC",serif';
+  g.font='600 '+size+'px "Noto Serif SC","PingFang SC","Hiragino Sans GB","Songti SC",serif';
   g.textAlign="center"; g.textBaseline="middle"; g.fillStyle="rgba(43,58,66,.88)";
   g.fillText(txt,W/2,l.charY); g.restore(); }
 function guide(l,s){
@@ -557,7 +565,11 @@ async function openEx(k){
 function menu(){ stopAll(); stage="menu"; anim=null; id=null; els.mumArt.classList.remove("show");
   els.title.textContent="Flight Academy · 小鸟"; els.picker.classList.remove("hidden");
   [els.sky,els.hint,els.mainRow,els.chips,els.back].forEach(e=>e.classList.add("hidden")); }
-els.back.onclick=menu;
+/* late-bound on purpose: the app's launcher reassigns the global menu() so that
+   leaving a lesson returns to the Base44 Flight Academy page. Writing
+   els.back.onclick=menu would capture THIS function object and keep calling the
+   engine's internal picker no matter what menu is later rebound to. */
+els.back.onclick=function(){ return menu(); };
 function cue(t,ms){ els.cue.textContent=t; els.cue.classList.add("show");
   clearTimeout(cue._t); if(ms) cue._t=setTimeout(()=>els.cue.classList.remove("show"),ms); }
 
@@ -1331,8 +1343,98 @@ function neutralScore(raw,s1,s2){
   return {score:Math.max(0,Math.min(100,100*(drop-0.4)/3.4)), dropSt:drop};
 }
 
+/* ==================================================================
+   OR1 — obvious-restart-only gate. Adopted 2026-08-25 under a locked
+   pre-registration (PREREG_OR1.md sha 58131b8c939ef72e...).
+   SCOPE, and it is part of the candidate rather than a caveat:
+     * detects OBVIOUS stop-and-restart events ONLY
+     * subtle restarts and ending pushes are NOT detected and are NOT
+       handled anywhere else in this engine either
+     * says NOTHING about whether the tone was correct
+   It reads the waveform and the room floor. It does not touch pitch
+   tracking, tone classification, coverage, or the score calculation.
+   Validation: 32 continuous productions with 0 false flags; 8 of 8
+   obvious restarts caught; JS/Python parity exact on all 40 clips,
+   verdicts and island boundaries.
+   ================================================================== */
+const OR1_MSG="It sounded like you stopped and started again. Try saying the syllable in one continuous sound.";
+const OR1=(function(){
+  const FRAME_MS=20.0, MID_LO=500.0, MID_HI=2000.0, MID_MIN=0.10, JOIN_MS=100.0, MIN_ISLAND_MS=60.0;
+  function fftPow2(re,im){
+    const n=re.length;
+    for(let i=1,j=0;i<n;i++){ let bit=n>>1;
+      for(;j&bit;bit>>=1) j^=bit; j^=bit;
+      if(i<j){ const tr=re[i];re[i]=re[j];re[j]=tr; const ti=im[i];im[i]=im[j];im[j]=ti; } }
+    for(let len=2;len<=n;len<<=1){
+      const ang=-2*Math.PI/len, wr=Math.cos(ang), wi=Math.sin(ang);
+      for(let i=0;i<n;i+=len){ let cr=1,ci=0;
+        for(let k=0;k<len/2;k++){
+          const ur=re[i+k], ui=im[i+k];
+          const vr=re[i+k+len/2]*cr-im[i+k+len/2]*ci;
+          const vi=re[i+k+len/2]*ci+im[i+k+len/2]*cr;
+          re[i+k]=ur+vr; im[i+k]=ui+vi;
+          re[i+k+len/2]=ur-vr; im[i+k+len/2]=ui-vi;
+          const ncr=cr*wr-ci*wi; ci=cr*wi+ci*wr; cr=ncr; } } }
+  }
+  /* exact-length transform (Bluestein): the frame is 960 samples at 48 kHz.
+     Zero-padding to 1024 would silently change the band energies and break
+     parity with the validated reference implementation. */
+  function powerSpectrum(x){
+    const n=x.length; let m=1; while(m<2*n-1) m<<=1;
+    const cosT=new Float64Array(n), sinT=new Float64Array(n);
+    for(let i=0;i<n;i++){ const ang=Math.PI*((i*i)%(2*n))/n; cosT[i]=Math.cos(ang); sinT[i]=Math.sin(ang); }
+    const ar=new Float64Array(m), ai=new Float64Array(m);
+    for(let i=0;i<n;i++){ ar[i]=x[i]*cosT[i]; ai[i]=-x[i]*sinT[i]; }
+    const br=new Float64Array(m), bi=new Float64Array(m);
+    br[0]=cosT[0]; bi[0]=sinT[0];
+    for(let i=1;i<n;i++){ br[i]=cosT[i]; bi[i]=sinT[i]; br[m-i]=cosT[i]; bi[m-i]=sinT[i]; }
+    fftPow2(ar,ai); fftPow2(br,bi);
+    for(let i=0;i<m;i++){ const r=ar[i]*br[i]-ai[i]*bi[i]; const q=ar[i]*bi[i]+ai[i]*br[i]; ar[i]=r; ai[i]=q; }
+    for(let i=0;i<m;i++) ai[i]=-ai[i];
+    fftPow2(ar,ai);
+    for(let i=0;i<m;i++){ ar[i]/=m; ai[i]=-ai[i]/m; }
+    const half=Math.floor(n/2)+1, out=new Float64Array(half);
+    for(let k=0;k<half;k++){
+      const re=ar[k]*cosT[k]+ai[k]*sinT[k];
+      const im=-ar[k]*sinT[k]+ai[k]*cosT[k];
+      out[k]=re*re+im*im; }
+    return out;
+  }
+  function check(x,sr,roomFloor){
+    if(!roomFloor||roomFloor<=0) return {result:"UNDEFINED",why:"no room-floor measurement",islands:[]};
+    const gate=Math.max(roomFloor*Math.pow(10,6/20),0.0012);
+    const win=Math.round(sr*FRAME_MS/1000);
+    const hann=new Float64Array(win);
+    for(let i=0;i<win;i++) hann[i]=0.5-0.5*Math.cos(2*Math.PI*i/(win-1));
+    const hits=[];
+    /* frame loop copied verbatim from the validated reference implementation:
+       it must not include a frame the reference excludes, or parity is broken. */
+    for(let i=0;i+win<=x.length-1||(i===0&&x.length>win);i+=win){
+      if(i+win>x.length) break;
+      let ss=0; for(let k=0;k<win;k++) ss+=x[i+k]*x[i+k];
+      if(Math.sqrt(ss/win)<=gate) continue;
+      const w=new Float64Array(win);
+      for(let k=0;k<win;k++) w[k]=x[i+k]*hann[k];
+      const S=powerSpectrum(w);
+      let tot=0,mid=0;
+      for(let k=0;k<S.length;k++){ const f=k*sr/win; tot+=S[k]; if(f>=MID_LO&&f<MID_HI) mid+=S[k]; }
+      if(mid/Math.max(tot,1e-20)>=MID_MIN) hits.push(1000*i/sr);
+    }
+    if(!hits.length) return {result:"UNDEFINED",why:"no speech frames",islands:[]};
+    const runs=[]; let cur=[hits[0],hits[0]];
+    for(let i=1;i<hits.length;i++){
+      if(hits[i]-cur[1]<=JOIN_MS) cur[1]=hits[i];
+      else { runs.push(cur); cur=[hits[i],hits[i]]; } }
+    runs.push(cur);
+    const isl=runs.map(r=>[r[0],r[1]+FRAME_MS]).filter(r=>(r[1]-r[0])>=MIN_ISLAND_MS);
+    if(!isl.length) return {result:"UNDEFINED",why:"no island survived the duration rule",islands:[]};
+    return {result: isl.length>=2?"FLAG":"NO FLAG", islands:isl, why:null};
+  }
+  return {check:check, version:"or1-1.0"};
+})();
+
 /* ---------------- attempt flow ---------------- *//* ---------------- attempt flow ---------------- */
-let rid=0,floorRms=0.002,recT0=0,lastVoice=0,voiceMs=0;
+let rid=0,floorRms=0.002,recT0=0,lastVoice=0,voiceMs=0,lastOR1=null;
 
 async function turn(){
   if(stage==="recording") return finish();
@@ -1382,6 +1484,22 @@ function finish(){
   const audioF32=flat(attemptStart,pcmLen);
   stopCapture();
 
+  /* OR1 runs FIRST and applies LAST: computing it here costs nothing (it needs
+     only the waveform and the room floor) and guarantees a verdict exists even
+     when the evidence gate later refuses the attempt. Without that, an obvious
+     restart with thin evidence would be answered with a generic "not enough to
+     score" and the learner would never be told the real reason. It changes
+     nothing at this point — it only records what it saw.
+
+     SINGLE-SYLLABLE EXERCISES ONLY. OR1 counts separate stretches of
+     formant-bearing sound; a genuine two-syllable word produces two of them by
+     definition, so on a pair it would flag ordinary correct speech. It was
+     validated on single syllables and it runs only there. Extending it to pairs
+     would be a new candidate needing its own validation, not a parameter tweak. */
+  lastOR1 = PAIRS[id]
+    ? {result:"NOT APPLICABLE", why:"multi-syllable exercise — OR1 is validated on single syllables only", islands:[]}
+    : OR1.check(audioF32,recSR,floorRms);
+
   /* ANALYSIS LAYER = Verified Tracker v1.0 (frozen, see header above).
      Every frame below is waveform-verified or null; trackOffline is kept
      only for side-by-side diagnostics in the developer export. */
@@ -1412,7 +1530,13 @@ function finish(){
       if(!an||nv<8){ perSyl.push({tone:want,score:0,fall:0,starved:true}); continue; }
       const keep=tone; tone=want; judgingPair=true;
       let jj=judge(an.c); tone=keep; judgingPair=false;
-      if(want===3 && CFG.t3x){
+      /* SCOPE: the experimental tone-3 scorer was developed and reviewed only on
+         ISOLATED 马 attempts. It has never been validated on a tone-3 syllable
+         sitting inside a word, where the neighbouring syllable changes both the
+         trough and the recovery. No live pair contains a tone 3 today, so this
+         costs nothing now and prevents the rule leaking into the first 3-x word
+         that gets added. Re-enabling it here needs its own validation. */
+      if(false && want===3 && CFG.t3x){
         const rx=applyT3X(jj, fr, audioF32, recSR, floorRms);
         rx.info.syllable=i+1; lastT3X=rx.info;
         if(rx.judged) jj=rx.judged;
@@ -1435,8 +1559,14 @@ function finish(){
   const starved=isPair&&sylSpans.length>=EX.pattern.length?perSyl.map((p,i)=>p.starved?i:-1).filter(i=>i>=0):[];
   if(!a||tier==="insufficient"||starved.length){
     result=null; setChips();
-    els.hint.textContent=starved.length?pairEvidenceMessage(starved,EX.pattern.length):evidenceMessage(vt.frames);
-    lastDebug="insufficient certified evidence"
+    /* coverage failed. If OR1 also saw an obvious restart, the restart is the
+       useful explanation — a generic evidence message here would be a silent
+       reason, which the adoption rules forbid. */
+    els.hint.textContent=(lastOR1&&lastOR1.result==="FLAG")
+      ? OR1_MSG
+      : (starved.length?pairEvidenceMessage(starved,EX.pattern.length):evidenceMessage(vt.frames));
+    lastDebug=(lastOR1?("or1 "+lastOR1.result+(lastOR1.islands.length?("  islands "+lastOR1.islands.map(v=>Math.round(v[0])+"-"+Math.round(v[1])).join(" | ")):"")+"\n"):"")
+      +"insufficient certified evidence"
       +(starved.length?("  (syllable "+starved.map(i=>i+1).join(",")+" starved)"):"")
       +"\ntier "+tier+"  verified "+vt.meta.nVoiced+"/"+vt.meta.nFrames
       +"  anchor "+(vt.meta.anchorHz?vt.meta.anchorHz.toFixed(1):"boot")+" Hz"
@@ -1454,7 +1584,9 @@ function finish(){
     else if(!rx.info.t2shape && j.score<70 && t3xLongGapRetry(raw)){
       lastT3X.retry=true;
       result=null; setChips();
-      els.hint.textContent=T3X_MSG;
+      /* same rule as the coverage refusal above: a detected obvious restart is
+         the more useful explanation for a no-score than the tone-3 retry text. */
+      els.hint.textContent=(lastOR1&&lastOR1.result==="FLAG")?OR1_MSG:T3X_MSG;
       lastDebug="tone-3 long rough trough — honest retry (credit gate: "+(rx.info.why||"below frozen")+")"
         +"\nverified "+vt.meta.nVoiced+"/"+vt.meta.nFrames+"  anchor "+(vt.meta.anchorHz?vt.meta.anchorHz.toFixed(1):"boot")+" Hz";
       record(wav,a,null); return;
@@ -1485,7 +1617,19 @@ function finish(){
   result={score:sc,band:bandOf(sc),action:act,best:j.best,syllables:syls,tier:tier,
           perSyl:perSyl.map(p=>({tone:p.tone,score:p.score,fall:+p.fall.toFixed(1),best:p.best})),
           neutralDrop:neutral?neutral.dropSt:null};
-  els.hint.textContent=HINT[tone];
+
+  /* OR1 applies HERE, and only here. CAP-ONLY: it may pull an Excellent down to
+     the highest non-Excellent band and may never replace or improve the tone
+     judge's result. Any other band is left exactly as the judge set it. The
+     judge's own score is preserved in or1.score_before for the record. */
+  result.or1=lastOR1?lastOR1.result:null;
+  result.or1Islands=lastOR1&&lastOR1.islands?lastOR1.islands.map(v=>[Math.round(v[0]),Math.round(v[1])]):null;
+  if(lastOR1&&lastOR1.result==="FLAG"&&result.band===0){
+    result.or1CappedFrom=result.score;
+    result.score=Math.min(result.score,BANDS[0].min-1);
+    result.band=bandOf(result.score);
+  }
+  els.hint.textContent=(lastOR1&&lastOR1.result==="FLAG")?(OR1_MSG+" "+HINT[tone]):HINT[tone];
   lastDebug="score "+j.score+"  band "+BANDS[result.band].name
     +(lastT3X?("\nt3x "+(lastT3X.used?("CREDIT "+lastT3X.score_frozen+"->"+j.score+" ["+lastT3X.creak+" p"+lastT3X.pulses+" rise"+lastT3X.rise_st+"st gap"+lastT3X.gap_ms+"ms]"):("off: "+(lastT3X.why||"below frozen")))):"")
     +"\nfit  T1 "+Math.round(j.fit[1])+"  T2 "+Math.round(j.fit[2])
@@ -1543,6 +1687,10 @@ function showResult(auto){
   : result.action
     ? (COACH[tone+"-"+result.best] || "That sounded like a different tone.")
     : (pairDiagnosis() || MSG[tone][result.band]);
+  /* the restart explanation leads, the tone coaching follows: the learner is
+     always told an obvious restart was detected, and never loses the tone
+     feedback the judge produced. OR1 contributes no tone judgement of its own. */
+  if(result.or1==="FLAG") els.vmsg.textContent=OR1_MSG+" "+els.vmsg.textContent;
   els.verdict.classList.add("show");
   const seed=(result.band+1)*1.7+tone;
   const child=choreograph(route,result.band,seed);
@@ -1584,6 +1732,9 @@ function record(wav,a,j){
               evidence_tier:lastTier,
               verified:lastVT.frames.filter(f=>f.f0!=null).map(f=>[+f.t.toFixed(3),+f.f0.toFixed(1)])}:null,
     t3x:lastT3X,
+    or1:lastOR1?{version:OR1.version,result:lastOR1.result,why:lastOR1.why||null,
+              islands:(lastOR1.islands||[]).map(v=>[Math.round(v[0]),Math.round(v[1])]),
+              capped_from:(result&&result.or1CappedFrom!=null)?result.or1CappedFrom:null}:null,
     fit:j?{1:Math.round(j.fit[1]),2:Math.round(j.fit[2]),3:Math.round(j.fit[3]),4:Math.round(j.fit[4]),
            best_tone:j.best,gap:j.gap,action:j.action}:null,
     tone3_evidence:j?{early_st:+j.f.early.toFixed(2),late_st:+j.f.late.toFixed(2),
